@@ -29,3 +29,11 @@ Validation for X1 (2026-11-11):
 - Across configured test tasks: 1,708 passed, 255 skipped, no failures or errors. Many compatibility-profile tests are skipped on macOS core-profile OpenGL.
 - Production jar ZIP integrity, metadata version, public SecondaryCamera API, and the original InputAvailability constructor verified.
 - In-game validation remains outstanding.
+
+## X2: shader activation with numbered builds
+
+X1 is superseded. Its `2.2.14_X1` version string reached the original StandardMacros parser, which attempted `Integer.parseInt("14_X1")`. The 05:16:41 and 05:16:58 client log entries show shaderpack loading aborting and falling back to normal rendering before pipeline construction.
+
+X2 backports only the suffix-safe version parser from master and adds regression coverage. The shader's numeric ANGELICA_VERSION remains `20214000` for `2.2.14_X1`, `2.2.14_X2`, and later numbered builds. The camera backport is unchanged.
+
+The packaged-version regression reproduced the NumberFormatException before the fix. After the fix, `./gradlew build --offline --console=plain` passed, including all 575 root tests and five shader-version tests. X2 metadata and ZIP integrity were verified. In-game activation and the complete shader transition/PiP sequence still require validation in the target pack.
