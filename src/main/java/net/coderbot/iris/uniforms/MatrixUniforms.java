@@ -18,6 +18,12 @@ import static net.coderbot.iris.gl.uniform.UniformUpdateFrequency.PER_FRAME;
 
 final class MatrixUniforms {
 	private static final Matrix4f GBUFFER_MODELVIEW_SCRATCH = new Matrix4f();
+    // Preserve 2.2.14's shared primary history and the clock used by ProgramUniforms.
+    private static final MatrixUniforms PRIMARY = new MatrixUniforms(SystemTimeUniforms.COUNTER);
+
+    static MatrixUniforms primary() {
+        return PRIMARY;
+    }
 	private final Previous modelView;
 	private final Previous projection;
 	private final Previous dhProjection;

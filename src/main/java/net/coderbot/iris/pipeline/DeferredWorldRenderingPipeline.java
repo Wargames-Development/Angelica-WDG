@@ -314,7 +314,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 		this.allowConcurrentCompute = programs.getPackDirectives().getConcurrentCompute();
 		this.shouldRenderPrepareBeforeShadow = programs.getPackDirectives().isPrepareBeforeShadow();
 		this.oldLighting = programs.getPackDirectives().isOldLighting();
-		this.updateNotifier = new FrameUpdateNotifier(outputFramebuffer);
+		this.updateNotifier = new FrameUpdateNotifier(outputFramebuffer, secondaryView);
 
 		this.packDirectives = programs.getPackDirectives();
 		this.activeFeatures = programs.getPack().getActiveFeatures();

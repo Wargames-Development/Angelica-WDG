@@ -37,3 +37,13 @@ X1 is superseded. Its `2.2.14_X1` version string reached the original StandardMa
 X2 backports only the suffix-safe version parser from master and adds regression coverage. The shader's numeric ANGELICA_VERSION remains `20214000` for `2.2.14_X1`, `2.2.14_X2`, and later numbered builds. The camera backport is unchanged.
 
 The packaged-version regression reproduced the NumberFormatException before the fix. After the fix, `./gradlew build --offline --console=plain` passed, including all 575 root tests and five shader-version tests. X2 metadata and ZIP integrity were verified. In-game activation and the complete shader transition/PiP sequence still require validation in the target pack.
+
+## X3: restore stock primary-camera history
+
+Reported symptom on X2: only with shaders, distant players trail their motion and vehicle LOD surfaces overlap, sometimes while stationary. This is not yet proven to be duplicate entity submissions.
+
+The camera port changed primary previous-matrix state from shared history on SystemTimeUniforms.COUNTER to per-pipeline history on FrameUpdateNotifier's local counter. X3 restores the stock shared primary history and main frame counter. Only secondary pipelines use isolated matrix history and local frame counters. PiP output framebuffers and the X2 version-parser fix are retained.
+
+Two tests establishing the stock primary-history contract failed on X2 before this change. After the change, both pass, along with the main/secondary isolation test. Full build passed with 577 root tests, zero failures or skips. The X3 production jar metadata and ZIP integrity were verified.
+
+This is a focused candidate for the reported shader ghosting. The tests establish history behavior, not reproduction or resolution of the in-game visual artifact. Test distant players and vehicles before opening a scope and again after a shadered PiP pass. No DH, FMUR, or MCHELI changes were made for X3.

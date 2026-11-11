@@ -12,13 +12,19 @@ public class FrameUpdateNotifier {
 	private final List<Runnable> listeners;
 	private final Supplier<Framebuffer> outputFramebuffer;
 	private int frame;
-	final MatrixUniforms matrices = new MatrixUniforms(() -> frame);
+	final MatrixUniforms matrices;
 
 	public FrameUpdateNotifier() {
 		this(() -> Minecraft.getMinecraft().getFramebuffer());
 	}
 
 	public FrameUpdateNotifier(Supplier<Framebuffer> outputFramebuffer) {
+        this(outputFramebuffer, false);
+    }
+
+    /** Only offscreen views need independent history; primary views keep the release behavior. */
+    public FrameUpdateNotifier(Supplier<Framebuffer> outputFramebuffer, boolean secondaryView) {
+        matrices = secondaryView ? new MatrixUniforms(() -> frame) : MatrixUniforms.primary();
 		this.outputFramebuffer = outputFramebuffer;
 		listeners = new ArrayList<>();
 	}

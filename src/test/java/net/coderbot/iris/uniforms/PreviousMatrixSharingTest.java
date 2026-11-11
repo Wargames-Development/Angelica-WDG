@@ -18,9 +18,34 @@ class PreviousMatrixSharingTest {
     private final Matrix4f source = new Matrix4f();
 
     @Test
+    void primaryViewKeepsStockSharedHistory() {
+        FrameUpdateNotifier first = new FrameUpdateNotifier();
+        FrameUpdateNotifier second = new FrameUpdateNotifier();
+        assertSame(previousProjection(first), previousProjection(second));
+    }
+
+    @Test
+    void primaryHistoryAdvancesWithTheMainFrameCounter() {
+        FrameUpdateNotifier primary = new FrameUpdateNotifier();
+        Supplier<Matrix4fc> previous = previousProjection(primary);
+        Matrix4f projection = RenderingState.INSTANCE.getProjectionMatrix();
+        Matrix4f saved = new Matrix4f(projection);
+        try {
+            SystemTimeUniforms.COUNTER.beginFrame();
+            projection.scaling(2);
+            previous.get();
+            SystemTimeUniforms.COUNTER.beginFrame();
+            projection.scaling(3);
+            assertEquals(2f, previous.get().m00());
+        } finally {
+            projection.set(saved);
+        }
+    }
+
+    @Test
     void previousProjectionIsSharedByProgramsWithinOneView() {
         FrameUpdateNotifier mainView = new FrameUpdateNotifier();
-        FrameUpdateNotifier scopeView = new FrameUpdateNotifier();
+        FrameUpdateNotifier scopeView = new FrameUpdateNotifier(() -> null, true);
         Supplier<Matrix4fc> mainPrevious = previousProjection(mainView);
         Supplier<Matrix4fc> scopePrevious = previousProjection(scopeView);
         assertSame(mainPrevious, previousProjection(mainView));
@@ -30,6 +55,7 @@ class PreviousMatrixSharingTest {
         Matrix4f saved = new Matrix4f(projection);
         try {
             mainView.onNewFrame();
+            SystemTimeUniforms.COUNTER.beginFrame();
             projection.scaling(2);
             mainPrevious.get();
             scopeView.onNewFrame();
@@ -37,6 +63,7 @@ class PreviousMatrixSharingTest {
             scopePrevious.get();
 
             mainView.onNewFrame();
+            SystemTimeUniforms.COUNTER.beginFrame();
             projection.scaling(3);
             assertEquals(2f, mainPrevious.get().m00());
             scopeView.onNewFrame();
