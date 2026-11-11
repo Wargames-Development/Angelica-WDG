@@ -28,7 +28,7 @@ public class MixinRenderGlobal {
     @Inject(method = "renderSky", at = @At(value = "FIELD", target = "Lnet/minecraft/client/renderer/Tessellator;instance:Lnet/minecraft/client/renderer/Tessellator;"))
     private void iris$renderSky$beginNormalSky(float partialTicks, CallbackInfo ci, @Share("pipeline") LocalRef<WorldRenderingPipeline> pipeline) {
         // None of the vanilla sky is rendered until after this call, so if anything is rendered before, it's CUSTOM_SKY.
-        pipeline.set(Iris.getPipelineManager().getPipelineNullable());
+        pipeline.set(net.coderbot.iris.pipeline.FlansScopePass.renderPipeline());
         pipeline.get().setPhase(WorldRenderingPhase.SKY);
     }
 
@@ -68,7 +68,7 @@ public class MixinRenderGlobal {
         at = @At(value = "INVOKE", target = "Lorg/lwjgl/opengl/GL11;glCallList(I)V", ordinal = 0, remap = false),
         slice = @Slice(from = @At(value = "INVOKE", target = "Lnet/minecraft/client/multiplayer/WorldClient;getSkyColor(Lnet/minecraft/entity/Entity;F)Lnet/minecraft/util/Vec3;")))
     private void iris$skipSkyDisc(int list, Operation<Void> original) {
-        WorldRenderingPipeline pipeline = Iris.getPipelineManager().getPipelineNullable();
+        WorldRenderingPipeline pipeline = net.coderbot.iris.pipeline.FlansScopePass.renderPipeline();
         if (pipeline == null || pipeline.shouldRenderSkyDisc()) {
             original.call(list);
         }
@@ -81,7 +81,7 @@ public class MixinRenderGlobal {
             from = @At(value = "FIELD", target = "Lnet/minecraft/client/renderer/RenderGlobal;locationSunPng:Lnet/minecraft/util/ResourceLocation;"),
             to = @At(value = "FIELD", target = "Lnet/minecraft/client/renderer/RenderGlobal;locationMoonPhasesPng:Lnet/minecraft/util/ResourceLocation;")))
     private int iris$skipSun(Tessellator instance, Operation<Integer> original) {
-        WorldRenderingPipeline pipeline = Iris.getPipelineManager().getPipelineNullable();
+        WorldRenderingPipeline pipeline = net.coderbot.iris.pipeline.FlansScopePass.renderPipeline();
         if (pipeline == null || pipeline.shouldRenderSun()) {
             return original.call(instance);
         }
@@ -96,7 +96,7 @@ public class MixinRenderGlobal {
             from = @At(value = "FIELD", target = "Lnet/minecraft/client/renderer/RenderGlobal;locationMoonPhasesPng:Lnet/minecraft/util/ResourceLocation;"),
             to = @At(value = "INVOKE", target = "Lnet/minecraft/client/multiplayer/WorldClient;getStarBrightness(F)F")))
     private int iris$skipMoon(Tessellator instance, Operation<Integer> original) {
-        WorldRenderingPipeline pipeline = Iris.getPipelineManager().getPipelineNullable();
+        WorldRenderingPipeline pipeline = net.coderbot.iris.pipeline.FlansScopePass.renderPipeline();
         if (pipeline == null || pipeline.shouldRenderMoon()) {
             return original.call(instance);
         }
@@ -109,7 +109,7 @@ public class MixinRenderGlobal {
         at = @At(value = "INVOKE", target = "Lorg/lwjgl/opengl/GL11;glCallList(I)V", ordinal = 0, remap = false),
         slice = @Slice(from = @At(value = "INVOKE", target = "Lnet/minecraft/client/multiplayer/WorldClient;getStarBrightness(F)F")))
     private void iris$skipStars(int list, Operation<Void> original) {
-        WorldRenderingPipeline pipeline = Iris.getPipelineManager().getPipelineNullable();
+        WorldRenderingPipeline pipeline = net.coderbot.iris.pipeline.FlansScopePass.renderPipeline();
         if (pipeline == null || pipeline.shouldRenderStars()) {
             original.call(list);
         }

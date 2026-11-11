@@ -129,7 +129,7 @@ public class RenderTargets {
 
     public boolean resizeIfNeeded(int newDepthBufferVersion, int newDepthTextureId, int newWidth, int newHeight, DepthBufferFormat newDepthFormat, PackDirectives packDirectives) {
         boolean recreateDepth = false;
-        if (cachedDepthBufferVersion != newDepthBufferVersion || currentDepthTexture != newDepthTextureId) {
+        if (cachedDepthBufferVersion != newDepthBufferVersion) {
             recreateDepth = true;
             currentDepthTexture = newDepthTextureId;
             cachedDepthBufferVersion = newDepthBufferVersion;
@@ -146,7 +146,8 @@ public class RenderTargets {
         }
 
         if (recreateDepth) {
-            // Reattach depth after a resize or after replacing the output framebuffer.
+            // Re-attach the depth textures with the new depth texture ID, since Minecraft re-creates
+            // the depth texture when resizing its render targets.
             //
             // I'm not sure if our framebuffers holding on to the old depth texture between frames
             // could be a concern, in the case of resizing and similar. I think it should work

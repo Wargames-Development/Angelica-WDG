@@ -12,7 +12,7 @@ import net.coderbot.iris.gl.state.StateUpdateNotifiers;
 import net.coderbot.iris.gl.texture.TextureAccess;
 import com.gtnewhorizons.angelica.glsm.texture.TextureType;
 import net.coderbot.iris.pipeline.DeferredWorldRenderingPipeline;
-import net.coderbot.iris.pipeline.SecondaryCameraPass;
+import net.coderbot.iris.pipeline.FlansScopePass;
 import net.coderbot.iris.pipeline.WorldRenderingPipeline;
 import net.coderbot.iris.rendertarget.RenderTarget;
 import net.coderbot.iris.rendertarget.RenderTargets;
@@ -193,7 +193,7 @@ public class IrisSamplers {
 	}
 
 	private static void ensureShadowColor(ShadowRenderTargets targets, int index) {
-		if (!SecondaryCameraPass.isRenderingShaders()) {
+		if (!FlansScopePass.isRenderingShaders()) {
 			targets.createIfEmpty(index);
 		} else if (targets.get(index) == null) {
 			throw new IllegalStateException("Primary shadow color " + index + " is unavailable");

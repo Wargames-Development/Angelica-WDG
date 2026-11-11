@@ -58,7 +58,7 @@ public class GbufferPrograms {
 	}
 
 	public static void onEntityRenderBoundary() {
-		final WorldRenderingPipeline pipeline = Iris.getPipelineManager().getPipelineNullable();
+		final WorldRenderingPipeline pipeline = net.coderbot.iris.pipeline.FlansScopePass.renderPipeline();
 
 		if (pipeline != null) {
 			pipeline.onEntityRenderBoundary();
@@ -246,7 +246,7 @@ public class GbufferPrograms {
 	}
 
 	public static WorldRenderingPhase getCurrentPhase() {
-		final WorldRenderingPipeline pipeline = Iris.getPipelineManager().getPipelineNullable();
+		final WorldRenderingPipeline pipeline = net.coderbot.iris.pipeline.FlansScopePass.renderPipeline();
 
 		if (pipeline != null) {
 			return pipeline.getPhase();
@@ -256,7 +256,7 @@ public class GbufferPrograms {
 	}
 
 	private static void setPhase(WorldRenderingPhase phase) {
-		final WorldRenderingPipeline pipeline = Iris.getPipelineManager().getPipelineNullable();
+		final WorldRenderingPipeline pipeline = net.coderbot.iris.pipeline.FlansScopePass.renderPipeline();
 
 		if (pipeline != null) {
 			pipeline.setPhase(phase);
@@ -280,7 +280,7 @@ public class GbufferPrograms {
 	public static void setOverridePhase(WorldRenderingPhase phase) {
 		overridePhase = phase;
 
-		final WorldRenderingPipeline pipeline = Iris.getPipelineManager().getPipelineNullable();
+		final WorldRenderingPipeline pipeline = net.coderbot.iris.pipeline.FlansScopePass.renderPipeline();
 
 		if (pipeline != null) {
 			pipeline.setOverridePhase(phase);
@@ -310,7 +310,7 @@ public class GbufferPrograms {
 	private static Boolean declaredTranslucent;
 
 	private static void applyTranslucencyDeclaration() {
-		final WorldRenderingPipeline pipeline = Iris.getPipelineManager().getPipelineNullable();
+		final WorldRenderingPipeline pipeline = net.coderbot.iris.pipeline.FlansScopePass.renderPipeline();
 
 		if (pipeline != null) {
 			pipeline.setDeclaredTranslucency(declaredTranslucent);
@@ -329,12 +329,12 @@ public class GbufferPrograms {
 
 	public static void setupSpecialRenderCondition(SpecialCondition override) {
 		currentSpecial = override;
-		Iris.getPipelineManager().getPipeline().ifPresent(p -> p.setSpecialCondition(override));
+		java.util.Optional.ofNullable(net.coderbot.iris.pipeline.FlansScopePass.renderPipeline()).ifPresent(p -> p.setSpecialCondition(override));
 	}
 
 	public static void teardownSpecialRenderCondition() {
 		currentSpecial = null;
-		Iris.getPipelineManager().getPipeline().ifPresent(p -> p.setSpecialCondition(null));
+		java.util.Optional.ofNullable(net.coderbot.iris.pipeline.FlansScopePass.renderPipeline()).ifPresent(p -> p.setSpecialCondition(null));
 	}
 
 	public static void runPhaseChangeNotifier() {
@@ -342,6 +342,34 @@ public class GbufferPrograms {
 			phaseChangeListener.run();
 		}
 	}
+
+    /** Private phase stacks for a scope; exceptions cannot leave its declarations on the primary view. */
+    public static final class ScopedState implements AutoCloseable {
+        private final boolean savedEntities = entities, savedBlocks = blockEntities, savedParticles = particles;
+        private final boolean savedOutline = outline, savedLoop = entityLoop;
+        private final int savedParticleDepth = particleDepth, savedBlendDepth = blendDepth;
+        private final WorldRenderingPhase savedOverride = overridePhase;
+        private final Boolean savedDeclaration = declaredTranslucent;
+        private final SpecialCondition savedSpecial = currentSpecial;
+        private final WorldRenderingPhase[] savedParticlePhases = particlePhaseSaves;
+        private final Boolean[] savedParticleDeclarations = particleTranslucencySaves;
+        private final BlendState[] savedBlends = blendSaves;
+        private final boolean[] savedBlendEnabled = blendEnabledSaves;
+        private ScopedState() {
+            entities = blockEntities = particles = outline = entityLoop = false;
+            particleDepth = blendDepth = 0; overridePhase = null; declaredTranslucent = null; currentSpecial = null;
+            particlePhaseSaves = new WorldRenderingPhase[4]; particleTranslucencySaves = new Boolean[4];
+            blendSaves = new BlendState[4]; blendEnabledSaves = new boolean[4];
+        }
+        @Override public void close() {
+            entities = savedEntities; blockEntities = savedBlocks; particles = savedParticles;
+            outline = savedOutline; entityLoop = savedLoop; particleDepth = savedParticleDepth; blendDepth = savedBlendDepth;
+            overridePhase = savedOverride; declaredTranslucent = savedDeclaration; currentSpecial = savedSpecial;
+            particlePhaseSaves = savedParticlePhases; particleTranslucencySaves = savedParticleDeclarations;
+            blendSaves = savedBlends; blendEnabledSaves = savedBlendEnabled;
+        }
+    }
+    public static ScopedState beginScopedView() { return new ScopedState(); }
 
 	public static void init() {
 		// Empty initializer to run static

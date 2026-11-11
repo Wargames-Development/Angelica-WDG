@@ -43,6 +43,7 @@ import net.coderbot.iris.uniforms.CommonUniforms;
 import net.coderbot.iris.uniforms.FrameUpdateNotifier;
 import net.coderbot.iris.uniforms.custom.CustomUniforms;
 import net.minecraft.client.Minecraft;
+import net.coderbot.iris.uniforms.ScopeFrameUpdateNotifier;
 import net.minecraft.client.renderer.OpenGlHelper;
 import net.minecraft.client.shader.Framebuffer;
 import net.minecraft.profiler.Profiler;
@@ -313,7 +314,7 @@ public class CompositeRenderer {
 				for (ComputeProgram computeProgram : renderPass.computes) {
 					if (computeProgram != null) {
 						ranCompute = true;
-	                    final Framebuffer main = updateNotifier.getOutputFramebuffer();
+	                    final Framebuffer main = ScopeFrameUpdateNotifier.framebuffer(updateNotifier);
 	                    computeProgram.use();
 	                    this.customUniforms.push(computeProgram);
 						computeProgram.dispatch(main.framebufferWidth, main.framebufferHeight);
@@ -374,8 +375,8 @@ public class CompositeRenderer {
 		FullScreenQuadRenderer.end();
 
 		// Make sure to reset the viewport to how it was before... Otherwise weird issues could occur.
-		// Restore this view's output framebuffer and viewport after the composite passes.
-        updateNotifier.getOutputFramebuffer().bindFramebuffer(true);
+		// Also bind the "main" framebuffer if it isn't already bound.
+        ScopeFrameUpdateNotifier.framebuffer(updateNotifier).bindFramebuffer(true);
 		ProgramUniforms.clearActiveUniforms();
 		ProgramSamplers.clearActiveSamplers();
 		GLStateManager.glUseProgram(0);

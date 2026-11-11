@@ -12,7 +12,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public class MixinRender {
     @Inject(method = "renderShadow(Lnet/minecraft/entity/Entity;DDDFF)V", at = @At("HEAD"), cancellable = true)
     private void angelica$checkShouldSkipDefaultShadow(CallbackInfo ci) {
-        final WorldRenderingPipeline pipeline = Iris.getPipelineManager().getPipelineNullable();
+        final WorldRenderingPipeline pipeline = net.coderbot.iris.pipeline.FlansScopePass.renderPipeline();
 
         if (pipeline != null && pipeline.shouldDisableVanillaEntityShadows()) {
             ci.cancel();

@@ -151,6 +151,12 @@ public class IrisCeleritasChunkProgramOverrides {
         }
     }
 
+    /** Only used by a private scope renderer after createShaders with its own pipeline. */
+    public GlProgram<? extends ChunkShaderInterface> getScopeProgram(TerrainRenderPass pass) {
+        return programs.get(pass.supportsFragmentDiscard() ? IrisTerrainPass.GBUFFER_CUTOUT
+            : pass.isReverseOrder() ? IrisTerrainPass.GBUFFER_TRANSLUCENT : IrisTerrainPass.GBUFFER_SOLID);
+    }
+
     public void deleteShaders() {
         for (GlProgram<?> program : programs.values()) {
             if (program != null) {

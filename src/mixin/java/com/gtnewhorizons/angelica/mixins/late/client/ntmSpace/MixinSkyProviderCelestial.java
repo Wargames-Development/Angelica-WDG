@@ -146,7 +146,7 @@ public class MixinSkyProviderCelestial {
 				, remap = true
 				, opcode = Opcodes.GETSTATIC))
 	private void iris$renderSky$beginNormalSky(CallbackInfo ci) {
-		Iris.getPipelineManager().getPipeline().ifPresent(p -> p.setPhase(WorldRenderingPhase.SKY));
+		java.util.Optional.ofNullable(net.coderbot.iris.pipeline.FlansScopePass.renderPipeline()).ifPresent(p -> p.setPhase(WorldRenderingPhase.SKY));
 	}
 
 	@Inject(method = "render"
@@ -154,7 +154,7 @@ public class MixinSkyProviderCelestial {
 				, target = "Lorg/lwjgl/opengl/GL11;glRotatef(FFFF)V"
 				, ordinal = 2))
 	private void iris$renderSky$tiltSun(CallbackInfo ci) {
-		Iris.getPipelineManager().getPipeline().ifPresent(
+		java.util.Optional.ofNullable(net.coderbot.iris.pipeline.FlansScopePass.renderPipeline()).ifPresent(
 				p -> GLStateManager.glRotatef(p.getSunPathRotation(), 0.0F, 0.0F, 1.0F)
 		);
 	}
@@ -162,7 +162,7 @@ public class MixinSkyProviderCelestial {
 	@Inject(method = "renderSun"
 			, at = @At(value = "HEAD"))
 	private void iris$setSunRenderStage(CallbackInfo ci) {
-		Iris.getPipelineManager().getPipeline().ifPresent(p -> p.setPhase(WorldRenderingPhase.SUN));
+		java.util.Optional.ofNullable(net.coderbot.iris.pipeline.FlansScopePass.renderPipeline()).ifPresent(p -> p.setPhase(WorldRenderingPhase.SUN));
 	}
 	
 }

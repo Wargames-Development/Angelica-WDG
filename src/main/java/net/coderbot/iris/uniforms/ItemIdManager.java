@@ -62,7 +62,7 @@ public class ItemIdManager {
      * you're in trouble.
      */
     public static boolean isWorldRenderActive() {
-        final WorldRenderingPipeline pipeline = Iris.getPipelineManager().getPipelineNullable();
+        final WorldRenderingPipeline pipeline = net.coderbot.iris.pipeline.FlansScopePass.renderPipeline();
         return pipeline instanceof DeferredWorldRenderingPipeline drp && drp.isRenderingLevelGeometry();
     }
 }

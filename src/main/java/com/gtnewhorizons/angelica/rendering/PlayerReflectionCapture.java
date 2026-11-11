@@ -100,6 +100,7 @@ public final class PlayerReflectionCapture {
     private PlayerReflectionCapture() {}
 
     public static void begin(EntityPlayer player) {
+        if (net.coderbot.iris.pipeline.FlansScopePass.isRendering()) return;
         active = false;
         captured = false;
         pending = false;
@@ -116,6 +117,7 @@ public final class PlayerReflectionCapture {
     }
 
     public static void end() {
+        if (net.coderbot.iris.pipeline.FlansScopePass.isRendering()) return;
         active = false;
         pending = false;
         target = null;
@@ -123,10 +125,12 @@ public final class PlayerReflectionCapture {
     }
 
     public static boolean shouldCapture() {
+        if (net.coderbot.iris.pipeline.FlansScopePass.isRendering()) return false;
         return active && !captured;
     }
 
     public static void emitAndSubmit(ModelBiped model, float scale) {
+        if (net.coderbot.iris.pipeline.FlansScopePass.isRendering()) return;
         captured = true;
 
         final float[] data = vertexScratch();
@@ -205,6 +209,7 @@ public final class PlayerReflectionCapture {
     }
 
     public static void flush() {
+        if (net.coderbot.iris.pipeline.FlansScopePass.isRendering()) return;
         if (!pending) return;
         pending = false;
         if (!Iris.enabled) return;

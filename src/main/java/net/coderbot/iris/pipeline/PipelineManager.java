@@ -19,7 +19,6 @@ public class PipelineManager {
 	private final Function<String, WorldRenderingPipeline> pipelineFactory;
 	private final Map<String, WorldRenderingPipeline> pipelinesPerDimension = new HashMap<>();
 	private WorldRenderingPipeline pipeline = new FixedFunctionWorldRenderingPipeline();
-	private DeferredWorldRenderingPipeline secondaryPipeline;
 	private String lastPreparedDimension = null;
 	private long shaderSection;
     @Getter
@@ -56,15 +55,11 @@ public class PipelineManager {
 
 	@Nullable
 	public WorldRenderingPipeline getPipelineNullable() {
-		return secondaryPipeline != null ? secondaryPipeline : pipeline;
+		return pipeline;
 	}
 
 	public Optional<WorldRenderingPipeline> getPipeline() {
-		return Optional.ofNullable(getPipelineNullable());
-	}
-
-	void setSecondaryPipeline(@Nullable DeferredWorldRenderingPipeline secondaryPipeline) {
-		this.secondaryPipeline = secondaryPipeline;
+		return Optional.ofNullable(pipeline);
 	}
 
 
@@ -80,7 +75,7 @@ public class PipelineManager {
 	 * @see <a href="https://github.com/IrisShaders/Iris/issues/1330">this GitHub issue</a>
 	 */
 	public void destroyPipeline() {
-		SecondaryCameraPass.discard();
+        FlansScopePass.discard();
 		Tracy.sectionLeave(shaderSection);
 		shaderSection = 0L;
 		pipelinesPerDimension.forEach((dimensionName, pipeline) -> {

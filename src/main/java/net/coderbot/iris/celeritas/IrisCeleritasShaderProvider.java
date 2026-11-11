@@ -5,7 +5,6 @@ import com.gtnewhorizons.angelica.rendering.celeritas.api.IrisShaderProvider;
 import com.gtnewhorizons.angelica.rendering.celeritas.iris.IrisExtendedChunkVertexType;
 import net.coderbot.iris.Iris;
 import net.coderbot.iris.block_rendering.BlockRenderingSettings;
-import net.coderbot.iris.pipeline.SecondaryCameraPass;
 import net.coderbot.iris.pipeline.WorldRenderingPipeline;
 import net.coderbot.iris.shadows.ShadowRenderingState;
 import net.minecraft.block.Block;
@@ -45,9 +44,7 @@ public class IrisCeleritasShaderProvider implements IrisShaderProvider {
         if (!isShadersEnabled() || renderPassConfiguration == null) {
             return null;
         }
-        return SecondaryCameraPass.isRendering()
-            ? SecondaryCameraPass.terrainProgram(pass, renderPassConfiguration)
-            : overrides.getProgramOverride(pass, renderPassConfiguration);
+        return overrides.getProgramOverride(pass, renderPassConfiguration);
     }
 
     @Override

@@ -87,6 +87,7 @@ import net.coderbot.iris.texture.pbr.PBRTextureManager;
 import net.coderbot.iris.texture.pbr.PBRType;
 import net.coderbot.iris.uniforms.CommonUniforms;
 import net.coderbot.iris.uniforms.FrameUpdateNotifier;
+import net.coderbot.iris.uniforms.ScopeFrameUpdateNotifier;
 import net.coderbot.iris.uniforms.ItemMaterialHelper;
 import net.coderbot.iris.uniforms.custom.CustomUniforms;
 import net.minecraft.client.Minecraft;
@@ -231,7 +232,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 	private static final Vector4f EMPTY_CLEAR_COLOR = new Vector4f(1.0F);
 
 	public DeferredWorldRenderingPipeline(ProgramSet programs) {
-        this(programs, Minecraft.getMinecraft()::getFramebuffer, null);
+        this(programs, null, null);
     }
 
     DeferredWorldRenderingPipeline(ProgramSet programs, Supplier<Framebuffer> outputFramebuffer,
@@ -314,12 +315,12 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 		this.allowConcurrentCompute = programs.getPackDirectives().getConcurrentCompute();
 		this.shouldRenderPrepareBeforeShadow = programs.getPackDirectives().isPrepareBeforeShadow();
 		this.oldLighting = programs.getPackDirectives().isOldLighting();
-		this.updateNotifier = new FrameUpdateNotifier(outputFramebuffer, secondaryView);
+		this.updateNotifier = secondaryView ? new ScopeFrameUpdateNotifier(outputFramebuffer) : new FrameUpdateNotifier();
 
 		this.packDirectives = programs.getPackDirectives();
 		this.activeFeatures = programs.getPack().getActiveFeatures();
 
-        final Framebuffer main = updateNotifier.getOutputFramebuffer();
+        final Framebuffer main = ScopeFrameUpdateNotifier.framebuffer(updateNotifier);
 
         final int depthTextureId = ((IRenderTargetExt)main).iris$getDepthTextureId();
 		final int internalFormat = TextureInfoCache.INSTANCE.getInfo(depthTextureId).getInternalFormat();
@@ -739,13 +740,11 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 
 		this.dhCompat = new DHCompat(secondaryView ? null : this, shadowDirectives.isDhShadowEnabled().orElse(true));
 
-		this.shadowVoxelizationCompute = createShadowVoxelizationCompute();
+		this.shadowVoxelizationCompute = secondaryView ? null : createShadowVoxelizationCompute();
 		bindVoxelizationMatrixUniforms();
         } catch (RuntimeException | Error failure) {
-            try {
-                destroy();
-            } catch (Throwable cleanupFailure) {
-                failure.addSuppressed(cleanupFailure);
+            if (secondaryView) {
+                try { destroy(); } catch (Throwable cleanupFailure) { failure.addSuppressed(cleanupFailure); }
             }
             throw failure;
         }
@@ -1347,7 +1346,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 			if (shadowViewport) {
 				GLStateManager.glViewport(0, 0, shadowMapResolution, shadowMapResolution);
 			} else {
-                final Framebuffer main = updateNotifier.getOutputFramebuffer();
+                final Framebuffer main = ScopeFrameUpdateNotifier.framebuffer(updateNotifier);
 				GLStateManager.glViewport(0, 0, main.framebufferWidth, main.framebufferHeight);
 			}
 
@@ -1609,7 +1608,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 		}
 
 		profiler.startSection("iris_clear");
-        final Framebuffer main = updateNotifier.getOutputFramebuffer();
+        final Framebuffer main = ScopeFrameUpdateNotifier.framebuffer(updateNotifier);
 
         final int depthTextureId = ((IRenderTargetExt)main).iris$getDepthTextureId();
 		final int internalFormat = TextureInfoCache.INSTANCE.getInfo(depthTextureId).getInternalFormat();
@@ -1873,7 +1872,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 		beginPass(null);
 		currentCondition = null;
 		profiler.startSection("iris_center_depth");
-		centerDepthSampler.sampleCenterDepth(updateNotifier.getOutputFramebuffer());
+		centerDepthSampler.sampleCenterDepth(ScopeFrameUpdateNotifier.framebuffer(updateNotifier));
 		profiler.endSection();
 		isRenderingFullScreenPass = false;
 
@@ -2013,7 +2012,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 	}
 
 	public int getSecondaryDistantDepth() {
-		return SecondaryCameraPass.getEmptyDistantDepth();
+		return FlansScopePass.getEmptyDistantDepth();
 	}
 
 	void abortSecondaryView() {
@@ -2032,7 +2031,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 
 	@Override
 	public void beginLevelRendering() {
-		final Framebuffer mainFb = updateNotifier.getOutputFramebuffer();
+		final Framebuffer mainFb = ScopeFrameUpdateNotifier.framebuffer(updateNotifier);
 		if (mainFb == null || mainFb.framebufferWidth < 16 || mainFb.framebufferHeight < 16) {
 			return;
 		}

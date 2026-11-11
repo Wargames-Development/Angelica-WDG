@@ -1,7 +1,7 @@
 package net.coderbot.iris.uniforms;
 
 import net.coderbot.iris.gl.uniform.UniformHolder;
-import net.minecraft.client.shader.Framebuffer;
+import net.minecraft.client.Minecraft;
 
 import static net.coderbot.iris.gl.uniform.UniformUpdateFrequency.PER_FRAME;
 
@@ -20,19 +20,19 @@ public final class ViewportUniforms {
 	 *
 	 * @param uniforms the program to make the uniforms available to
 	 */
-	public static void addViewportUniforms(UniformHolder uniforms, FrameUpdateNotifier notifier) {
+	public static void addViewportUniforms(UniformHolder uniforms) {
 		// TODO: What about the custom scale.composite3 property?
 		// NB: It is not safe to cache the render target due to mods like Resolution Control modifying the render target field.
 		uniforms
-			.uniform1f(PER_FRAME, "viewHeight", () -> notifier.getOutputFramebuffer().framebufferHeight)
-			.uniform1f(PER_FRAME, "viewWidth", () -> notifier.getOutputFramebuffer().framebufferWidth)
-			.uniform1f(PER_FRAME, "aspectRatio", () -> getAspectRatio(notifier.getOutputFramebuffer()));
+			.uniform1f(PER_FRAME, "viewHeight", () -> Minecraft.getMinecraft().getFramebuffer().framebufferHeight)
+			.uniform1f(PER_FRAME, "viewWidth", () -> Minecraft.getMinecraft().getFramebuffer().framebufferWidth)
+			.uniform1f(PER_FRAME, "aspectRatio", ViewportUniforms::getAspectRatio);
 	}
 
 	/**
-	 * @return the aspect ratio of this view's output framebuffer
+	 * @return the current viewport aspect ratio, calculated from the current Minecraft window size
 	 */
-	private static float getAspectRatio(Framebuffer output) {
-		return (float) output.framebufferWidth / output.framebufferHeight;
+	private static float getAspectRatio() {
+		return ((float) Minecraft.getMinecraft().getFramebuffer().framebufferWidth) / ((float) Minecraft.getMinecraft().getFramebuffer().framebufferHeight);
 	}
 }

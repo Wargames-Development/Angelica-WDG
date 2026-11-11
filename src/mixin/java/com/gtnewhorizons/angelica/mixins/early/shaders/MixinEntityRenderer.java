@@ -137,7 +137,7 @@ public abstract class MixinEntityRenderer implements IResourceManagerReloadListe
 
     @WrapOperation(method = "updateRenderer", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/EntityRenderer;addRainParticles()V"))
     private void iris$wrapRainParticles(EntityRenderer instance, Operation<Void> original) {
-        WorldRenderingPipeline pipeline = Iris.getPipelineManager().getPipelineNullable();
+        WorldRenderingPipeline pipeline = net.coderbot.iris.pipeline.FlansScopePass.renderPipeline();
         if (pipeline == null || pipeline.shouldRenderWeatherParticles()) {
             original.call(instance);
         }

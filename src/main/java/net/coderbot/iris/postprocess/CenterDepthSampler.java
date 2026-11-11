@@ -13,7 +13,7 @@ import com.gtnewhorizons.angelica.glsm.texture.InternalTextureFormat;
 import com.gtnewhorizons.angelica.glsm.texture.PixelType;
 import net.coderbot.iris.gl.uniform.UniformUpdateFrequency;
 import net.coderbot.iris.uniforms.SystemTimeUniforms;
-import net.minecraft.client.shader.Framebuffer;
+import net.minecraft.client.Minecraft;
 import org.embeddedt.embeddium.impl.render.shader.ShaderLoader;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL12;
@@ -53,7 +53,11 @@ public class CenterDepthSampler {
 		this.program = builder.build();
 	}
 
-	public void sampleCenterDepth(Framebuffer outputFramebuffer) {
+	public void sampleCenterDepth() {
+        sampleCenterDepth(Minecraft.getMinecraft().getFramebuffer());
+    }
+
+    public void sampleCenterDepth(net.minecraft.client.shader.Framebuffer outputFramebuffer) {
 		if ((hasFirstSample && (!everRetrieved)) || destroyed) {
 			// If the shaderpack isn't reading center depth values, don't bother sampling it
 			// This improves performance with most shaderpacks
@@ -75,7 +79,8 @@ public class CenterDepthSampler {
 		// The API contract of DepthCopyStrategy claims it can only copy depth, however the 2 non-stencil methods used are entirely capable of copying color as of now.
 		DepthCopyStrategy.fastest(false).copy(this.framebuffer, texture, null, altTexture, 1, 1);
 
-		outputFramebuffer.bindFramebuffer(true);
+		//Reset viewport
+        outputFramebuffer.bindFramebuffer(true);
 	}
 
 	public void setupColorTexture(int texture, InternalTextureFormat format) {

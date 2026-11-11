@@ -16,7 +16,6 @@ import com.gtnewhorizons.angelica.rendering.voxelization.ShadowVoxelizer;
 import net.coderbot.iris.Iris;
 import net.coderbot.iris.gl.program.ComputeProgram;
 import net.coderbot.iris.pipeline.DeferredWorldRenderingPipeline;
-import net.coderbot.iris.pipeline.SecondaryCameraPass;
 import net.coderbot.iris.pipeline.WorldRenderingPipeline;
 import net.coderbot.iris.shadows.ShadowRenderingState;
 import org.embeddedt.embeddium.impl.gl.device.CommandList;
@@ -242,17 +241,7 @@ class AngelicaChunkRenderer extends DefaultChunkRenderer {
         final List<GlShader> loadedShaders = new ArrayList<>();
 
         try {
-            final String vertexPath = "sodium:" + path + ".vsh";
-            if (options.pass().vertexType().getVertexFormat().getAttributes().stream()
-                .noneMatch(attribute -> attribute.getName().equals("a_RdhFactor"))) {
-                // The Iris mesh format omits this AO correction. Its slot may be occupied by a different attribute.
-                final String source = ShaderParser.parseShader(ShaderLoader.getShaderSource(vertexPath),
-                    ShaderLoader::getShaderSource, constants);
-                loadedShaders.add(new GlShader(ShaderType.VERTEX, vertexPath,
-                    source.replace("_vert_rdh_factor = a_RdhFactor;", "_vert_rdh_factor = vec4(0.0);")));
-            } else {
-                loadedShaders.add(loadShader(ShaderType.VERTEX, vertexPath, constants));
-            }
+            loadedShaders.add(loadShader(ShaderType.VERTEX, "sodium:" + path + ".vsh", constants));
             loadedShaders.add(loadShader(ShaderType.FRAGMENT, "angelica:" + path + ".fsh", constants));
 
             final var builder = GlProgram.builder("sodium:chunk_shader");
@@ -271,8 +260,7 @@ class AngelicaChunkRenderer extends DefaultChunkRenderer {
     @Override
     public void render(ChunkRenderMatrices matrices, CommandList commandList, ChunkRenderListIterable renderLists,
                        TerrainRenderPass renderPass, CameraTransform occlusionCamera, CameraTransform camera) {
-        final boolean useCuller = culler != null && !SecondaryCameraPass.isRendering();
-        if (useCuller) {
+        if (culler != null) {
             culler.beginRenderPass(matrices, renderLists, renderPass, occlusionCamera, camera, useBlockFaceCulling());
         }
 
@@ -280,11 +268,8 @@ class AngelicaChunkRenderer extends DefaultChunkRenderer {
             voxelizeShadowTerrain(matrices, renderLists, renderPass, occlusionCamera, camera);
             super.render(matrices, commandList, renderLists, renderPass, occlusionCamera, camera);
         } finally {
-            try {
-                if (irisProgram != null) end(renderPass);
-            } finally {
-                unbindRgssSampler();
-                if (useCuller) culler.endPass();
+            if (culler != null) {
+                culler.endPass();
             }
         }
     }
@@ -295,7 +280,7 @@ class AngelicaChunkRenderer extends DefaultChunkRenderer {
                                                    CameraTransform occlusionCamera, TerrainRenderPass renderPass,
                                                    boolean useBlockFaceCulling,
                                                    SectionRenderDataStorage.BatchCacheParams cacheParams) {
-        if (culler != null && !SecondaryCameraPass.isRendering() && culler.isComputeActiveThisPass()) {
+        if (culler != null && culler.isComputeActiveThisPass()) {
             final MultiDrawBatch batch = culler.batchForRegion(region);
             if (batch == null) return null;
             return this.gpuBatch.wrap(batch, prepareTessellation(commandList, region, renderPass));

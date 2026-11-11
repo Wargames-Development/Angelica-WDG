@@ -264,7 +264,7 @@ public class IrisCeleritasChunkShaderInterface implements ChunkShaderInterface {
 
     @Nullable
     private CeleritasTerrainPipeline getCeleritasTerrainPipeline() {
-        final WorldRenderingPipeline pipeline = Iris.getPipelineManager().getPipelineNullable();
+        final WorldRenderingPipeline pipeline = net.coderbot.iris.pipeline.FlansScopePass.renderPipeline();
         return pipeline != null ? pipeline.getCeleritasTerrainPipeline() : null;
     }
 }

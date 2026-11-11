@@ -51,7 +51,7 @@ public class IrisGLSMBridge {
     private static final Int2IntOpenHashMap programLastUpdatedFrame = new Int2IntOpenHashMap();
 
     private static void refreshBlendCondition() {
-        if (Iris.getPipelineManager().getPipelineNullable() instanceof DeferredWorldRenderingPipeline drp) {
+        if (net.coderbot.iris.pipeline.FlansScopePass.renderPipeline() instanceof DeferredWorldRenderingPipeline drp) {
             drp.onVanillaBlendChanged();
         }
     }
@@ -243,7 +243,7 @@ public class IrisGLSMBridge {
         GLSMHooks.TEXTURE_BIND.addListener(event -> {
             if (Iris.enabled) {
                 TextureTracker.INSTANCE.onBindTexture();
-                final WorldRenderingPipeline pipeline = Iris.getPipelineManager().getPipelineNullable();
+                final WorldRenderingPipeline pipeline = net.coderbot.iris.pipeline.FlansScopePass.renderPipeline();
                 if (pipeline != null) {
                     pipeline.onBindTexture(event.textureId);
                 }
@@ -273,7 +273,7 @@ public class IrisGLSMBridge {
                 inputsDeferred = true;
                 return;
             }
-            Iris.getPipelineManager().getPipeline().ifPresent(p -> p.setInputs(StateTracker.INSTANCE.getInputs()));
+            java.util.Optional.ofNullable(net.coderbot.iris.pipeline.FlansScopePass.renderPipeline()).ifPresent(p -> p.setInputs(StateTracker.INSTANCE.getInputs()));
         });
 
         GLSMHooks.VANILLA_BLEND_CHANGE.addListener(event -> {
@@ -289,7 +289,7 @@ public class IrisGLSMBridge {
             if (!Iris.enabled) return;
             if (inputsDeferred) {
                 inputsDeferred = false;
-                Iris.getPipelineManager().getPipeline().ifPresent(p -> p.setInputs(StateTracker.INSTANCE.getInputs()));
+                java.util.Optional.ofNullable(net.coderbot.iris.pipeline.FlansScopePass.renderPipeline()).ifPresent(p -> p.setInputs(StateTracker.INSTANCE.getInputs()));
             }
             if (blendDeferred) {
                 blendDeferred = false;
@@ -297,7 +297,7 @@ public class IrisGLSMBridge {
             }
             if (programRestoreDeferred) {
                 programRestoreDeferred = false;
-                final WorldRenderingPipeline pipeline = Iris.getPipelineManager().getPipelineNullable();
+                final WorldRenderingPipeline pipeline = net.coderbot.iris.pipeline.FlansScopePass.renderPipeline();
                 if (pipeline instanceof DeferredWorldRenderingPipeline drp && drp.shouldOverrideShaders()) {
                     drp.restorePassAfterModProgram(GLStateManager.getActiveProgram());
                 }
@@ -322,7 +322,7 @@ public class IrisGLSMBridge {
             if (!Iris.enabled) return;
             if (event.postBind) return;
 
-            final WorldRenderingPipeline pipeline = Iris.getPipelineManager().getPipelineNullable();
+            final WorldRenderingPipeline pipeline = net.coderbot.iris.pipeline.FlansScopePass.renderPipeline();
             if (!(pipeline instanceof DeferredWorldRenderingPipeline drp)) return;
             if (!drp.shouldOverrideShaders()) return;
             DepthColorStorage.unlockDepthColor();
@@ -336,7 +336,7 @@ public class IrisGLSMBridge {
             if (!Iris.enabled) return;
             if (!event.postBind) return;
 
-            final WorldRenderingPipeline pipeline = Iris.getPipelineManager().getPipelineNullable();
+            final WorldRenderingPipeline pipeline = net.coderbot.iris.pipeline.FlansScopePass.renderPipeline();
             if (!(pipeline instanceof DeferredWorldRenderingPipeline drp)) return;
             if (!drp.shouldOverrideShaders()) return;
 
@@ -351,7 +351,7 @@ public class IrisGLSMBridge {
         GLSMHooks.PROGRAM_CHANGE.addListener(event -> {
             if (!Iris.enabled) return;
             if (!event.postBind) return;
-            WorldRenderingPipeline pipeline = Iris.getPipelineManager().getPipelineNullable();
+            WorldRenderingPipeline pipeline = net.coderbot.iris.pipeline.FlansScopePass.renderPipeline();
             if (pipeline instanceof DeferredWorldRenderingPipeline drp) {
                 DeferredWorldRenderingPipeline.Pass activePass = drp.getActivePassProgram();
                 if (activePass != null && activePass.getProgram() != null && activePass.getProgram().getProgramId() == event.newProgram) {

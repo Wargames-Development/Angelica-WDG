@@ -17,7 +17,7 @@ public final class PassRebindGate {
             && GLStateManager.getDrawFramebufferGeneration() == lastFbGen) {
             return;
         }
-        final WorldRenderingPipeline pipeline = Iris.getPipelineManager().getPipelineNullable();
+        final WorldRenderingPipeline pipeline = net.coderbot.iris.pipeline.FlansScopePass.renderPipeline();
         if (pipeline != null) {
             pipeline.rebindCurrentPass();
         }

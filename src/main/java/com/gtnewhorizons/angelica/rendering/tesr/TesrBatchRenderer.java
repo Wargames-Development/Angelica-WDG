@@ -95,6 +95,7 @@ public final class TesrBatchRenderer {
     }
 
     static boolean instancedCapable() {
+        if (net.coderbot.iris.pipeline.FlansScopePass.isRendering()) return false;
         if (!ShaderManager.getInstance().isEnabled()) return false;
         if (!Iris.enabled) return true;
         final WorldRenderingPipeline pipeline = Iris.getPipelineManager().getPipelineNullable();
@@ -103,6 +104,7 @@ public final class TesrBatchRenderer {
     }
 
     static DeferredWorldRenderingPipeline deferredPipeline() {
+        if (net.coderbot.iris.pipeline.FlansScopePass.isRendering()) return null;
         if (!Iris.enabled) return null;
         return Iris.getPipelineManager().getPipelineNullable() instanceof DeferredWorldRenderingPipeline deferred
             ? deferred : null;

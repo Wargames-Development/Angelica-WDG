@@ -9,6 +9,7 @@ import org.joml.Vector3i;
 import java.time.LocalDateTime;
 import java.util.OptionalLong;
 import java.util.function.IntSupplier;
+import java.util.function.DoubleSupplier;
 
 /**
  * Implements uniforms relating the system time (as opposed to the world time)
@@ -40,12 +41,16 @@ public final class SystemTimeUniforms {
 	 * @param uniforms the program to make the uniforms available to
 	 */
 	public static void addSystemTimeUniforms(UniformHolder uniforms) {
+        addSystemTimeUniforms(uniforms, COUNTER, TIMER::getLastFrameTime);
+    }
+
+    static void addSystemTimeUniforms(UniformHolder uniforms, IntSupplier frameCounter, DoubleSupplier frameTime) {
 		final Vector3i date = new Vector3i();
 		final Vector3i time = new Vector3i();
 		final Vector2i yearTime = new Vector2i();
 		uniforms
-			.uniform1i(UniformUpdateFrequency.PER_FRAME, "frameCounter", COUNTER)
-			.uniform1f(UniformUpdateFrequency.PER_FRAME, "frameTime", TIMER::getLastFrameTime)
+			.uniform1i(UniformUpdateFrequency.PER_FRAME, "frameCounter", frameCounter)
+			.uniform1f(UniformUpdateFrequency.PER_FRAME, "frameTime", frameTime)
 			.uniform1f(UniformUpdateFrequency.PER_FRAME, "frameTimeCounter", TIMER::getFrameTimeCounter)
 			.uniform3i(UniformUpdateFrequency.PER_TICK, "currentDate", () -> {
 				final LocalDateTime dt = dateTimeSnapshot();

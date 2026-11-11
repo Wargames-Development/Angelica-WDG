@@ -37,6 +37,7 @@ import net.coderbot.iris.uniforms.CommonUniforms;
 import net.coderbot.iris.uniforms.FrameUpdateNotifier;
 import net.coderbot.iris.uniforms.custom.CustomUniforms;
 import net.minecraft.client.Minecraft;
+import net.coderbot.iris.uniforms.ScopeFrameUpdateNotifier;
 import net.minecraft.client.shader.Framebuffer;
 import net.minecraft.profiler.Profiler;
 import org.jetbrains.annotations.Nullable;
@@ -123,7 +124,7 @@ public class FinalPassRenderer {
 		// up with whatever was written last (since we're reading from these framebuffers) instead of trying to create
 		// a framebuffer with color attachments different from what was written last (as we do with normal composite
 		// passes that write to framebuffers).
-        final Framebuffer main = updateNotifier.getOutputFramebuffer();
+        final Framebuffer main = ScopeFrameUpdateNotifier.framebuffer(updateNotifier);
 		this.baseline = renderTargets.createGbufferFramebuffer(flippedBuffers, new int[] {0});
 		this.colorHolder = new GlFramebuffer();
         this.lastColorTextureId = main.framebufferTexture;
@@ -204,7 +205,7 @@ public class FinalPassRenderer {
         GLStateManager.disableAlphaTest();
         GLStateManager.glDepthMask(false);
 
-        final Framebuffer main = updateNotifier.getOutputFramebuffer();
+        final Framebuffer main = ScopeFrameUpdateNotifier.framebuffer(updateNotifier);
 		final int baseWidth = main.framebufferWidth;
 		final int baseHeight = main.framebufferHeight;
 
