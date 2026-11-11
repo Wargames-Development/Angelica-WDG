@@ -38,6 +38,9 @@ public final class FlansScopePass {
     private static Framebuffer output;
     private static Object unsupportedPack;
     private static DepthTexture emptyDistantDepth;
+    private static net.coderbot.iris.compat.dh.ScopeDistantTerrain distantTerrain;
+    private static ScopeRenderState distantState;
+    private static int distantPass;
     private static RenderPassConfiguration<?> terrainConfiguration;
     private static int distantWidth, distantHeight, privateVao;
     private FlansScopePass() { }
@@ -98,6 +101,11 @@ public final class FlansScopePass {
                     pipeline = new DeferredWorldRenderingPipeline(Iris.getCurrentPack().orElseThrow().getProgramSet(Iris.getCurrentDimensionName()), () -> target, main);
                     output = target; primary = main;
                 }
+                if (distantTerrain == null && net.coderbot.iris.compat.dh.DHCompat.isPresent()
+                    && net.coderbot.iris.compat.dh.ScopeDistantTerrain.supported(pipeline)) {
+                    distantTerrain = new net.coderbot.iris.compat.dh.ScopeDistantTerrain(pipeline, target.framebufferWidth, target.framebufferHeight);
+                }
+                if (distantTerrain != null) distantTerrain.clear();
                 final int traceFrame = diagnosticFrames < 3 ? ++diagnosticFrames : 0;
                 if (traceFrame != 0) Iris.logger.info("Flans scope frame {}: begin private scene", traceFrame);
                 GLStateManager.setShaderColor(1, 1, 1, 1);
@@ -125,6 +133,7 @@ public final class FlansScopePass {
                 }
                 return true;
             } finally {
+                if (distantState != null) endDistantTerrain();
                 if (pipeline != null && pipeline.isWorldPassActive()) pipeline.abortSecondaryView();
             }
         } catch (RuntimeException | LinkageError failure) {
@@ -154,6 +163,29 @@ public final class FlansScopePass {
         return true;
     }
     static int getEmptyDistantDepth() { return emptyDistantDepth.getTextureId(); }
+    static int getDistantDepth(boolean opaque) {
+        return distantTerrain == null ? getEmptyDistantDepth() : distantTerrain.depth(opaque);
+    }
+
+    public static boolean hasDistantTerrain() { return rendering && distantTerrain != null; }
+
+    public static void beginDistantTerrain(int pass, float partialTicks) {
+        if (!hasDistantTerrain() || distantState != null) throw new IllegalStateException("No available scope DH pass");
+        distantState = new ScopeRenderState(); distantPass = pass;
+        try { distantTerrain.begin(pass, partialTicks); }
+        catch (RuntimeException | LinkageError failure) { endDistantTerrain(); throw failure; }
+    }
+
+    public static void distantTerrainOffset(float x, float y, float z) {
+        if (distantState == null) throw new IllegalStateException("No active scope DH pass");
+        distantTerrain.offset(x, y, z);
+    }
+
+    public static void endDistantTerrain() {
+        if (distantState == null) return;
+        final ScopeRenderState saved = distantState; distantState = null;
+        try { distantTerrain.end(distantPass); } finally { saved.close(); }
+    }
     private static void prepareEmptyDistantDepth(Framebuffer target) {
         if (emptyDistantDepth != null && distantWidth == target.framebufferWidth && distantHeight == target.framebufferHeight) return;
         if (emptyDistantDepth != null) emptyDistantDepth.destroy();
@@ -196,6 +228,7 @@ public final class FlansScopePass {
         terrainPrograms.deleteShaders(); terrainConfiguration = null;
         final DeferredWorldRenderingPipeline old = pipeline;
         pipeline = null; primary = null; output = null; reportedReady = false; diagnosticFrames = 0;
+        if (distantTerrain != null) { distantTerrain.destroy(); distantTerrain = null; }
         if (old != null) old.destroy();
         if (emptyDistantDepth != null) { emptyDistantDepth.destroy(); emptyDistantDepth = null; }
         if (privateVao != 0) { GLStateManager.glDeleteVertexArrays(privateVao); privateVao = 0; }

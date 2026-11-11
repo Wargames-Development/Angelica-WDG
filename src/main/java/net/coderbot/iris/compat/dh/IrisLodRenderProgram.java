@@ -104,6 +104,11 @@ public class IrisLodRenderProgram {
         blend = override;
         ProgramUniforms.Builder uniformBuilder = ProgramUniforms.builder(name, id);
         ProgramSamplers.Builder samplerBuilder = ProgramSamplers.builder(id, IrisSamplers.WORLD_RESERVED_TEXTURE_UNITS);
+        if (pipeline.isSecondaryView()) {
+            samplerBuilder.addDynamicSampler(pipeline::getSecondaryNativeDepth, "iris_scopeNativeDepth");
+            uniformBuilder.uniform2f(net.coderbot.iris.gl.uniform.UniformUpdateFrequency.PER_FRAME,
+                "iris_scopeViewSize", () -> new org.joml.Vector2f(pipeline.getSecondaryWidth(), pipeline.getSecondaryHeight()));
+        }
         CommonUniforms.addDynamicUniforms(uniformBuilder, FogMode.PER_VERTEX);
         customUniforms.assignTo(uniformBuilder);
         BuiltinReplacementUniforms.addBuiltinReplacementUniforms(uniformBuilder);
@@ -133,7 +138,7 @@ public class IrisLodRenderProgram {
             source.getTessEvalSource().orElse(null),
             source.getGeometrySource().orElse(null),
             source.getFragmentSource().orElseThrow(RuntimeException::new),
-            pipeline.getTextureMap());
+            pipeline.getTextureMap(), pipeline.isSecondaryView());
         String vertex = transformed.get(PatchShaderType.VERTEX);
         String tessControl = transformed.get(PatchShaderType.TESS_CONTROL);
         String tessEval = transformed.get(PatchShaderType.TESS_EVAL);

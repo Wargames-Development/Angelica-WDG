@@ -2012,8 +2012,15 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 	}
 
 	public int getSecondaryDistantDepth() {
-		return FlansScopePass.getEmptyDistantDepth();
+		return FlansScopePass.getDistantDepth(false);
 	}
+
+    public int getSecondaryOpaqueDistantDepth() { return FlansScopePass.getDistantDepth(true); }
+    public int getSecondaryNativeDepth() {
+        return ((IRenderTargetExt) ScopeFrameUpdateNotifier.framebuffer(updateNotifier)).iris$getDepthTextureId();
+    }
+    public int getSecondaryWidth() { return ScopeFrameUpdateNotifier.framebuffer(updateNotifier).framebufferWidth; }
+    public int getSecondaryHeight() { return ScopeFrameUpdateNotifier.framebuffer(updateNotifier).framebufferHeight; }
 
 	void abortSecondaryView() {
 		beginPass(null);

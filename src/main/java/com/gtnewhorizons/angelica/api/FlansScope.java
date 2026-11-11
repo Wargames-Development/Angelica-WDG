@@ -16,6 +16,14 @@ public final class FlansScope {
     }
     public static void beginTranslucents() { FlansScopePass.beginTranslucents(); }
     public static void phase(String name) { FlansScopePass.phase(name); }
+    /** Optional additive v1 extension. Only valid inside the scene callback.
+     * Submit DH's 16-byte terrain vertices with integer position/extra attributes
+     * at indices 0/2 and normalized colour at index 1, under the borrower's read locks.
+     * Pass 0 precedes beginTranslucents; pass 1 follows it. Always balance begin/end. */
+    public static boolean hasDistantTerrain() { return FlansScopePass.hasDistantTerrain(); }
+    public static void beginDistantTerrain(int pass, float partialTicks) { FlansScopePass.beginDistantTerrain(pass, partialTicks); }
+    public static void distantTerrainOffset(float x, float y, float z) { FlansScopePass.distantTerrainOffset(x, y, z); }
+    public static void endDistantTerrain() { FlansScopePass.endDistantTerrain(); }
     /** Opaque optional handle for a private Celeritas terrain renderer. No primary draw lists are submitted. */
     public static Object terrainProgram(Object pass, Object configuration) {
         return FlansScopePass.terrainProgram(

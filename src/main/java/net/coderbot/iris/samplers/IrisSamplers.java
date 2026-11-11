@@ -95,7 +95,8 @@ public class IrisSamplers {
 		}
 
 		if (pipeline instanceof DeferredWorldRenderingPipeline deferred && deferred.isSecondaryView()) {
-			samplers.addDynamicSampler(deferred::getSecondaryDistantDepth, "dhDepthTex", "dhDepthTex0", "dhDepthTex1");
+			samplers.addDynamicSampler(deferred::getSecondaryDistantDepth, "dhDepthTex", "dhDepthTex0");
+            samplers.addDynamicSampler(deferred::getSecondaryOpaqueDistantDepth, "dhDepthTex1");
 		} else if (pipeline != null) {
 			samplers.addDynamicSampler(TextureType.TEXTURE_2D, () -> pipeline.getDHCompat().getDepthTex(), (GlSampler) null, "dhDepthTex", "dhDepthTex0");
 			samplers.addDynamicSampler(TextureType.TEXTURE_2D, () -> pipeline.getDHCompat().getDepthTexNoTranslucent(), (GlSampler) null, "dhDepthTex1");

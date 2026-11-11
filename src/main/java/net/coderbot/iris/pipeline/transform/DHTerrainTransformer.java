@@ -8,6 +8,15 @@ public class DHTerrainTransformer {
     public static void transform(Transformer transformer, Parameters parameters, int glslVersion) {
         CommonTransformer.transform(transformer, parameters, true, glslVersion);
 
+        if (parameters.type == ShaderType.FRAGMENT
+            && ((net.coderbot.iris.pipeline.transform.parameter.DHParameters) parameters).secondaryView) {
+            // Native scope geometry owns its pixels. Do not compare DH's physical
+            // depth with the native projection or overwrite the native gbuffers.
+            transformer.injectVariable("uniform sampler2D iris_scopeNativeDepth;");
+            transformer.injectVariable("uniform vec2 iris_scopeViewSize;");
+            transformer.prependMain("if (texture(iris_scopeNativeDepth, gl_FragCoord.xy / iris_scopeViewSize).r < 1.0) discard;");
+        }
+
         transformer.replaceExpression("gl_TextureMatrix[0]", "mat4(1.0)");
         transformer.replaceExpression("gl_TextureMatrix[1]", "mat4(1.0)");
         transformer.rename("gl_ProjectionMatrix", "iris_ProjectionMatrix");
