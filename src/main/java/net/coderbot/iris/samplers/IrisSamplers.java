@@ -11,6 +11,8 @@ import net.coderbot.iris.gl.sampler.SamplerHolder;
 import net.coderbot.iris.gl.state.StateUpdateNotifiers;
 import net.coderbot.iris.gl.texture.TextureAccess;
 import com.gtnewhorizons.angelica.glsm.texture.TextureType;
+import net.coderbot.iris.pipeline.DeferredWorldRenderingPipeline;
+import net.coderbot.iris.pipeline.SecondaryCameraPass;
 import net.coderbot.iris.pipeline.WorldRenderingPipeline;
 import net.coderbot.iris.rendertarget.RenderTarget;
 import net.coderbot.iris.rendertarget.RenderTargets;
@@ -92,8 +94,9 @@ public class IrisSamplers {
 			}
 		}
 
-		// Add the DH depth textures (stub implementation returns 0 until DH is integrated)
-		if (pipeline != null) {
+		if (pipeline instanceof DeferredWorldRenderingPipeline deferred && deferred.isSecondaryView()) {
+			samplers.addDynamicSampler(deferred::getSecondaryDistantDepth, "dhDepthTex", "dhDepthTex0", "dhDepthTex1");
+		} else if (pipeline != null) {
 			samplers.addDynamicSampler(TextureType.TEXTURE_2D, () -> pipeline.getDHCompat().getDepthTex(), (GlSampler) null, "dhDepthTex", "dhDepthTex0");
 			samplers.addDynamicSampler(TextureType.TEXTURE_2D, () -> pipeline.getDHCompat().getDepthTexNoTranslucent(), (GlSampler) null, "dhDepthTex1");
 		}
@@ -152,23 +155,23 @@ public class IrisSamplers {
 		if (flipped == null) {
 			// No flip tracking - use getColorTextureId which handles internal flip state
 			if (samplers.addDynamicSampler(() -> shadowRenderTargets.getColorTextureId(0), "shadowcolor")) {
-				shadowRenderTargets.createIfEmpty(0);
+				ensureShadowColor(shadowRenderTargets, 0);
 			}
 			for (int i = 0; i < shadowRenderTargets.getRenderTargetCount(); i++) {
 				final int finalI = i;
 				if (samplers.addDynamicSampler(() -> shadowRenderTargets.getColorTextureId(finalI), "shadowcolor" + i)) {
-					shadowRenderTargets.createIfEmpty(finalI);
+					ensureShadowColor(shadowRenderTargets, finalI);
 				}
 			}
 		} else {
 			// With flip tracking - check provided flipped set
 			if (samplers.addDynamicSampler(() -> flipped.contains(0) ? shadowRenderTargets.get(0).getAltTexture() : shadowRenderTargets.get(0).getMainTexture(), "shadowcolor")) {
-				shadowRenderTargets.createIfEmpty(0);
+				ensureShadowColor(shadowRenderTargets, 0);
 			}
 			for (int i = 0; i < shadowRenderTargets.getRenderTargetCount(); i++) {
 				final int finalI = i;
 				if (samplers.addDynamicSampler(() -> flipped.contains(finalI) ? shadowRenderTargets.get(finalI).getAltTexture() : shadowRenderTargets.get(finalI).getMainTexture(), "shadowcolor" + finalI)) {
-					shadowRenderTargets.createIfEmpty(finalI);
+					ensureShadowColor(shadowRenderTargets, finalI);
 				}
 			}
 		}
@@ -187,6 +190,14 @@ public class IrisSamplers {
 		}
 
 		return usage;
+	}
+
+	private static void ensureShadowColor(ShadowRenderTargets targets, int index) {
+		if (!SecondaryCameraPass.isRenderingShaders()) {
+			targets.createIfEmpty(index);
+		} else if (targets.get(index) == null) {
+			throw new IllegalStateException("Primary shadow color " + index + " is unavailable");
+		}
 	}
 
 	public static boolean hasPBRSamplers(SamplerHolder samplers) {

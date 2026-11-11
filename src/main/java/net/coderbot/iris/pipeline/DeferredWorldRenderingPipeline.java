@@ -226,10 +226,19 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 
 	private int packSamplerUsage;
 	private final Profiler profiler = Minecraft.getMinecraft().mcProfiler;
+	private final boolean secondaryView;
 
 	private static final Vector4f EMPTY_CLEAR_COLOR = new Vector4f(1.0F);
 
 	public DeferredWorldRenderingPipeline(ProgramSet programs) {
+        this(programs, Minecraft.getMinecraft()::getFramebuffer, null);
+    }
+
+    DeferredWorldRenderingPipeline(ProgramSet programs, Supplier<Framebuffer> outputFramebuffer,
+                                   @Nullable DeferredWorldRenderingPipeline mainView) {
+        this.secondaryView = mainView != null;
+        this.shadowRenderTargets = secondaryView ? mainView.shadowRenderTargets : null;
+        try {
 		Objects.requireNonNull(programs);
 
 		final long _t0 = System.nanoTime();
@@ -305,12 +314,12 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 		this.allowConcurrentCompute = programs.getPackDirectives().getConcurrentCompute();
 		this.shouldRenderPrepareBeforeShadow = programs.getPackDirectives().isPrepareBeforeShadow();
 		this.oldLighting = programs.getPackDirectives().isOldLighting();
-		this.updateNotifier = new FrameUpdateNotifier();
+		this.updateNotifier = new FrameUpdateNotifier(outputFramebuffer);
 
 		this.packDirectives = programs.getPackDirectives();
 		this.activeFeatures = programs.getPack().getActiveFeatures();
 
-        final Framebuffer main = Minecraft.getMinecraft().getFramebuffer();
+        final Framebuffer main = updateNotifier.getOutputFramebuffer();
 
         final int depthTextureId = ((IRenderTargetExt)main).iris$getDepthTextureId();
 		final int internalFormat = TextureInfoCache.INSTANCE.getInfo(depthTextureId).getInternalFormat();
@@ -340,6 +349,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
             holder -> CommonUniforms.addNonDynamicUniforms(holder, programs.getPack().getIdMap(), programs.getPackDirectives(), this.updateNotifier)
         );
 
+		if (!secondaryView) {
 		final var blockIdMaps = BlockMaterialMapping.createBlockIdMaps(
 			programs.getPack().getIdMap().getBlockProperties(),
 			programs.getPack().getIdMap().hasLegacySection());
@@ -357,6 +367,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 		BlockRenderingSettings.INSTANCE.setDisableDirectionalShading(shouldDisableDirectionalShading());
 		BlockRenderingSettings.INSTANCE.setUseSeparateAo(programs.getPackDirectives().shouldUseSeparateAo());
 		BlockRenderingSettings.INSTANCE.setUseExtendedVertexFormat(true);
+        }
 
 		// Don't clobber anything in texture unit 0. It probably won't cause issues, but we're just being cautious here.
 		GLStateManager.glActiveTexture(GL13.GL_TEXTURE2);
@@ -405,6 +416,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 
 		this.shadowTargetsSupplier = () -> {
 			if (shadowRenderTargets == null) {
+                if (secondaryView) throw new IllegalStateException("Primary shadow targets unavailable");
 				this.shadowRenderTargets = new ShadowRenderTargets(this, shadowMapResolution, shadowDirectives);
 			}
 
@@ -522,7 +534,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 
 		final Map<Pair<ProgramId, InputAvailability>, Pass> cachedPasses = new HashMap<>();
 
-		this.shadowComputes = createShadowComputes(programs.getShadowCompute());
+		this.shadowComputes = secondaryView ? new ComputeProgram[0] : createShadowComputes(programs.getShadowCompute());
 
 		this.table = new ProgramTable<>((condition, availability) -> {
 			final int idx;
@@ -573,11 +585,11 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 		});
 		Iris.logger.info("[Load #{}] DWRP phase=gbuffer-table elapsed_ms={}", Iris.getShaderPackLoadId(), String.format("%.1f", (System.nanoTime() - _tLast) / 1_000_000.0));
 		_tLast = System.nanoTime();
-		if (shadowRenderTargets == null && shadowDirectives.isShadowEnabled() == OptionalBoolean.TRUE) {
+		if (!secondaryView && shadowRenderTargets == null && shadowDirectives.isShadowEnabled() == OptionalBoolean.TRUE) {
 			shadowRenderTargets = new ShadowRenderTargets(this, shadowMapResolution, shadowDirectives);
 		}
 
-		if (shadowRenderTargets != null) {
+		if (!secondaryView && shadowRenderTargets != null) {
 			this.shadowClearPasses = ClearPassCreator.createShadowClearPasses(shadowRenderTargets, false, shadowDirectives);
 			this.shadowClearPassesFull = ClearPassCreator.createShadowClearPasses(shadowRenderTargets, true, shadowDirectives);
 
@@ -725,11 +737,19 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 			renderTargets, flippedAfterPrepare, flippedAfterTranslucent,
 			celeritasShadowFb);
 
-		this.dhCompat = new DHCompat(this, shadowDirectives.isDhShadowEnabled().orElse(true));
+		this.dhCompat = new DHCompat(secondaryView ? null : this, shadowDirectives.isDhShadowEnabled().orElse(true));
 
 		this.shadowVoxelizationCompute = createShadowVoxelizationCompute();
 		bindVoxelizationMatrixUniforms();
-	}
+        } catch (RuntimeException | Error failure) {
+            try {
+                destroy();
+            } catch (Throwable cleanupFailure) {
+                failure.addSuppressed(cleanupFailure);
+            }
+            throw failure;
+        }
+    }
 
 	private RenderTargets getRenderTargets() {
 		return renderTargets;
@@ -1327,7 +1347,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 			if (shadowViewport) {
 				GLStateManager.glViewport(0, 0, shadowMapResolution, shadowMapResolution);
 			} else {
-                final Framebuffer main = Minecraft.getMinecraft().getFramebuffer();
+                final Framebuffer main = updateNotifier.getOutputFramebuffer();
 				GLStateManager.glViewport(0, 0, main.framebufferWidth, main.framebufferHeight);
 			}
 
@@ -1454,12 +1474,12 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 		// Destroy the composite rendering pipeline
 		//
 		// This destroys all the loaded composite programs as well.
-		beginRenderer.destroy();
-		prepareRenderer.destroy();
-		compositeRenderer.destroy();
-		deferredRenderer.destroy();
-		finalPassRenderer.destroy();
-		centerDepthSampler.destroy();
+		if (beginRenderer != null) beginRenderer.destroy();
+		if (prepareRenderer != null) prepareRenderer.destroy();
+		if (compositeRenderer != null) compositeRenderer.destroy();
+		if (deferredRenderer != null) deferredRenderer.destroy();
+		if (finalPassRenderer != null) finalPassRenderer.destroy();
+		if (centerDepthSampler != null) centerDepthSampler.destroy();
 
 		// Destroy setup compute programs
 		if (setup != null) {
@@ -1488,7 +1508,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 			shadowCompositeRenderer.destroy();
 		}
 
-		horizonRenderer.destroy();
+		if (horizonRenderer != null) horizonRenderer.destroy();
 
 		// Make sure that any custom framebuffers are not bound before destroying render targets
 		OpenGlHelper.func_153171_g/*glBindFramebuffer*/(GL30.GL_READ_FRAMEBUFFER, 0);
@@ -1501,23 +1521,25 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 		//
 		// While it's possible to just clear them instead and reuse them, we'd need to investigate whether or not this
 		// would help performance.
-		renderTargets.destroy();
-		dhCompat.clearPipeline();
+		if (renderTargets != null) renderTargets.destroy();
+		if (dhCompat != null) dhCompat.clearPipeline();
 
 		// destroy the shadow render targets
-		if (shadowRenderTargets != null) {
+		if (!secondaryView && shadowRenderTargets != null) {
 			shadowRenderTargets.destroy();
 		}
 
 		// Destroy custom textures and the static samplers (normals, specular, and noise)
-		customTextureManager.destroy();
-		whitePixel.deleteGlTexture();
+		if (customTextureManager != null) customTextureManager.destroy();
+		if (whitePixel != null) whitePixel.deleteGlTexture();
 
 		// Destroy custom images
-		for (GlImage image : customImages) {
-			image.destroy();
+		if (customImages != null) {
+			for (GlImage image : customImages) {
+				image.destroy();
+			}
+			customImages.clear();
 		}
-		customImages.clear();
 
 		// Destroy SSBOs
 		if (ssboHolder != null) {
@@ -1528,6 +1550,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 	private static void destroyPasses(ProgramTable<Pass> table) {
 		Set<Pass> destroyed = new HashSet<>();
 
+		if (table == null) return;
 		table.forEach(pass -> {
 			if (pass == null) {
 				return;
@@ -1547,7 +1570,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 		// Make sure we're using texture unit 0 for this.
 		GLStateManager.glActiveTexture(GL13.GL_TEXTURE0);
 
-		if (shadowRenderTargets != null) {
+		if (!secondaryView && shadowRenderTargets != null) {
 			profiler.startSection("iris_shadow_clear");
 			if (packDirectives.getShadowDirectives().isShadowEnabled() == OptionalBoolean.FALSE) {
 				if (shadowRenderTargets.isFullClearRequired()) {
@@ -1586,7 +1609,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 		}
 
 		profiler.startSection("iris_clear");
-        final Framebuffer main = Minecraft.getMinecraft().getFramebuffer();
+        final Framebuffer main = updateNotifier.getOutputFramebuffer();
 
         final int depthTextureId = ((IRenderTargetExt)main).iris$getDepthTextureId();
 		final int internalFormat = TextureInfoCache.INSTANCE.getInfo(depthTextureId).getInternalFormat();
@@ -1657,7 +1680,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 		}
 
 		// Reset framebuffer and viewport
-        Minecraft.getMinecraft().getFramebuffer().bindFramebuffer(true);
+        main.bindFramebuffer(true);
 		profiler.endSection();
 	}
 
@@ -1850,7 +1873,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 		beginPass(null);
 		currentCondition = null;
 		profiler.startSection("iris_center_depth");
-		centerDepthSampler.sampleCenterDepth();
+		centerDepthSampler.sampleCenterDepth(updateNotifier.getOutputFramebuffer());
 		profiler.endSection();
 		isRenderingFullScreenPass = false;
 
@@ -1981,9 +2004,35 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 	private boolean isRenderingWorld = false;
 	private boolean isRenderingFullScreenPass = false;
 
+	boolean isWorldPassActive() {
+		return isRenderingWorld || isRenderingFullScreenPass || isPostChain;
+	}
+
+	public boolean isSecondaryView() {
+		return secondaryView;
+	}
+
+	public int getSecondaryDistantDepth() {
+		return SecondaryCameraPass.getEmptyDistantDepth();
+	}
+
+	void abortSecondaryView() {
+		beginPass(null);
+		isRenderingWorld = false;
+		isRenderingFullScreenPass = false;
+		phase = WorldRenderingPhase.NONE;
+		overridePhase = null;
+		syncPhaseDebugGroup();
+		if (worldGroupActive) {
+			GLDebug.popGroup();
+			worldGroupActive = false;
+		}
+	}
+
+
 	@Override
 	public void beginLevelRendering() {
-		final Framebuffer mainFb = Minecraft.getMinecraft().getFramebuffer();
+		final Framebuffer mainFb = updateNotifier.getOutputFramebuffer();
 		if (mainFb == null || mainFb.framebufferWidth < 16 || mainFb.framebufferHeight < 16) {
 			return;
 		}

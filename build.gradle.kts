@@ -6,6 +6,19 @@ plugins {
     id("com.gtnewhorizons.gtnhconvention")
 }
 
+apply(from = "gradle/mod-version.gradle.kts")
+
+// Keep the release's LWJGL snapshot version; use the mirror retained by GTNH.
+allprojects {
+    repositories {
+        maven {
+            name = "LWJGL snapshots"
+            url = uri("https://nexus.gtnewhorizons.com/repository/central-sonatype-snapshots/")
+            content { includeGroup("org.lwjgl") }
+        }
+    }
+}
+
 val lwjglDebug = false
 val gpuHud = false
 val renderdoc = false
@@ -155,6 +168,19 @@ tasks.test {
 
 val downgradeRootMainClasses = tasks.named<DowngradeFiles>("downgradeMainClasses")
 val downgradeRootTestClasses = tasks.named<DowngradeFiles>("downgradeTestClasses")
+
+// The older convention plugin leaves the normal test task pointing at an empty
+// directory after JVM downgrading. Use the same class outputs as the GL task.
+tasks.test {
+    dependsOn(downgradeRootMainClasses, downgradeRootTestClasses)
+    val rawMain = sourceSets["main"].output.classesDirs
+    val rawTest = sourceSets["test"].output.classesDirs
+    val downgradedTest = downgraded(downgradeRootTestClasses)
+    setTestClassesDirs(downgradedTest)
+    classpath = classpath.minus(rawMain).minus(rawTest)
+        .plus(downgradedTest)
+        .plus(downgraded(downgradeRootMainClasses))
+}
 
 val glCoreTest by tasks.registering(Test::class) {
     description = "Runs the gl-core tests in their own JVM with a real GL context."
