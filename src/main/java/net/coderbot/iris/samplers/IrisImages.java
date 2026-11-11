@@ -3,6 +3,7 @@ package net.coderbot.iris.samplers;
 import com.google.common.collect.ImmutableSet;
 import net.coderbot.iris.gl.image.GlImage;
 import net.coderbot.iris.gl.image.ImageHolder;
+import net.coderbot.iris.pipeline.SecondaryCameraPass;
 import com.gtnewhorizons.angelica.glsm.texture.InternalTextureFormat;
 import net.coderbot.iris.rendertarget.RenderTarget;
 import net.coderbot.iris.rendertarget.RenderTargets;
@@ -63,6 +64,9 @@ public class IrisImages {
 		}
 		for (int i = 0; i < shadowRenderTargets.getNumColorTextures(); i++) {
 			final int index = i;
+			if (SecondaryCameraPass.isRenderingShaders() && images.hasImage("shadowcolorimg" + i)) {
+				throw new IllegalStateException("Secondary view cannot bind a primary shadow image for writing");
+			}
 
 			IntSupplier textureID;
 			if (flipped == null) {

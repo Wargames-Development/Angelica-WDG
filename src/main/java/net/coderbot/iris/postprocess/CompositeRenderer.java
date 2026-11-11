@@ -317,7 +317,7 @@ public class CompositeRenderer {
 				for (ComputeProgram computeProgram : renderPass.computes) {
 					if (computeProgram != null) {
 						ranCompute = true;
-	                    final Framebuffer main = Minecraft.getMinecraft().getFramebuffer();
+	                    final Framebuffer main = updateNotifier.getOutputFramebuffer();
 	                    computeProgram.use();
 	                    this.customUniforms.push(computeProgram);
 						computeProgram.dispatch(main.framebufferWidth, main.framebufferHeight);
@@ -378,8 +378,8 @@ public class CompositeRenderer {
 		FullScreenQuadRenderer.end();
 
 		// Make sure to reset the viewport to how it was before... Otherwise weird issues could occur.
-		// Also bind the "main" framebuffer if it isn't already bound.
-        Minecraft.getMinecraft().getFramebuffer().bindFramebuffer(true);
+		// Restore this view's output framebuffer and viewport after the composite passes.
+        updateNotifier.getOutputFramebuffer().bindFramebuffer(true);
 		ProgramUniforms.clearActiveUniforms();
 		ProgramSamplers.clearActiveSamplers();
 		GLSMPrograms.glUseProgram(0);

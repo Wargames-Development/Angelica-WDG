@@ -127,7 +127,7 @@ public class FinalPassRenderer {
 		// up with whatever was written last (since we're reading from these framebuffers) instead of trying to create
 		// a framebuffer with color attachments different from what was written last (as we do with normal composite
 		// passes that write to framebuffers).
-        final Framebuffer main = Minecraft.getMinecraft().getFramebuffer();
+        final Framebuffer main = updateNotifier.getOutputFramebuffer();
 		this.baseline = renderTargets.createGbufferFramebuffer(flippedBuffers, new int[] {0});
 		this.colorHolder = new GlFramebuffer();
         this.lastColorTextureId = main.framebufferTexture;
@@ -208,7 +208,7 @@ public class FinalPassRenderer {
         GLSMDepthStencilAlpha.disableAlphaTest();
         GLSMDepthStencilAlpha.glDepthMask(false);
 
-        final Framebuffer main = Minecraft.getMinecraft().getFramebuffer();
+        final Framebuffer main = updateNotifier.getOutputFramebuffer();
 		final int baseWidth = main.framebufferWidth;
 		final int baseHeight = main.framebufferHeight;
 

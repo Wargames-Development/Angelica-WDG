@@ -55,14 +55,14 @@ public final class CommonUniforms {
 
     public static void addNonDynamicUniforms(UniformHolder uniforms, IdMap idMap, PackDirectives directives, FrameUpdateNotifier updateNotifier) {
         CameraUniforms.addCameraUniforms(uniforms, updateNotifier);
-        ViewportUniforms.addViewportUniforms(uniforms);
+        ViewportUniforms.addViewportUniforms(uniforms, updateNotifier);
         WorldTimeUniforms.addWorldTimeUniforms(uniforms);
         SystemTimeUniforms.addSystemTimeUniforms(uniforms);
 		BiomeUniforms.addBiomeUniforms(uniforms);
         new CelestialUniforms(directives.getSunPathRotation()).addCelestialUniforms(uniforms);
         IrisExclusiveUniforms.addIrisExclusiveUniforms(uniforms, updateNotifier);
         IdMapUniforms.addIdMapUniforms(updateNotifier, uniforms, idMap, directives.isOldHandLight());
-        MatrixUniforms.addMatrixUniforms(uniforms, directives);
+        updateNotifier.matrices.addMatrixUniforms(uniforms, directives);
 
         if (Iris.hardcodedCustomUniforms) {
             HardcodedCustomUniforms.addHardcodedCustomUniforms(uniforms, updateNotifier);
