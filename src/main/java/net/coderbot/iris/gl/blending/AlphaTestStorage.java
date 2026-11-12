@@ -19,6 +19,16 @@ public class AlphaTestStorage {
 
     private static boolean overrideHeld;
 
+    /** Suspend deferred override bookkeeping while a private geometry target is active.
+     * Restore effective GL state first, then run the returned bookkeeping restoration. */
+    public static Runnable suspendOverrides() {
+        final boolean enabled=vanillaEnabled, locked=alphaTestLocked, held=overrideHeld;
+        final int function=vanillaFunction; final float reference=vanillaReference;
+        alphaTestLocked=false; overrideHeld=false;
+        return () -> { vanillaEnabled=enabled;vanillaFunction=function;vanillaReference=reference;
+            alphaTestLocked=locked;overrideHeld=held; };
+    }
+
     public static void overrideAlphaTest(AlphaTest override) {
         if (!overrideHeld) {
             final AlphaState alphaState = GLStateManager.getAlphaState();

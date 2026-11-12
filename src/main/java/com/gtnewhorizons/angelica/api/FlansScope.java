@@ -14,6 +14,11 @@ public final class FlansScope {
                                  float partialTicks, BooleanSupplier drawScene, BooleanSupplier forwardLayer) {
         return FlansScopePass.render(target, projection, modelView, partialTicks, drawScene, forwardLayer);
     }
+    /** Additive actor submission contract, valid only before private finalization.
+     * Scene colour/material/normal, full/opaque DH depth, native depth, width/height, opaque/no-hand native depth.
+     * Use immutable copies for sampled depths; only the returned private attachments may be written. */
+    public static int[] actorTargets() { return FlansScopePass.actorTargets(); }
+    public static FloatBuffer actorProjection() { return FlansScopePass.actorProjection(); }
     public static void beginTranslucents() { FlansScopePass.beginTranslucents(); }
     public static void phase(String name) { FlansScopePass.phase(name); }
     /** Optional additive v1 extension. Only valid inside the scene callback.

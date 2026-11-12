@@ -31,8 +31,12 @@ import static org.mockito.Mockito.*;
 @GLCoreTest
 class ScopeDistantTerrainGLTest {
     private static Object oldConfig, oldDeobf, oldMinecraft;
+    private static boolean oldDefineIris;
     private static final java.util.Map<Field,Object> notifiers = new java.util.HashMap<>();
     @BeforeAll static void initialiseDebugEnvironment() throws Exception {
+        // Configuration annotations are not applied by the test bootstrap. Match the shipped default.
+        oldDefineIris=com.gtnewhorizons.angelica.config.AngelicaConfig.defineIsIris;
+        com.gtnewhorizons.angelica.config.AngelicaConfig.defineIsIris=true;
         oldDeobf = net.minecraft.launchwrapper.Launch.blackboard.put("fml.deobfuscatedEnvironment", false);
         Field config = net.coderbot.iris.Iris.class.getDeclaredField("irisConfig"); config.setAccessible(true);
         oldConfig = config.get(null); config.set(null, mock(net.coderbot.iris.config.IrisConfig.class));
@@ -44,6 +48,7 @@ class ScopeDistantTerrainGLTest {
         }
     }
     @AfterAll static void restoreDebugEnvironment() throws Exception {
+        com.gtnewhorizons.angelica.config.AngelicaConfig.defineIsIris=oldDefineIris;
         if (oldDeobf == null) net.minecraft.launchwrapper.Launch.blackboard.remove("fml.deobfuscatedEnvironment");
         else net.minecraft.launchwrapper.Launch.blackboard.put("fml.deobfuscatedEnvironment",oldDeobf);
         Field config = net.coderbot.iris.Iris.class.getDeclaredField("irisConfig"); config.setAccessible(true); config.set(null,oldConfig);
@@ -80,6 +85,18 @@ class ScopeDistantTerrainGLTest {
                 source == programs.getDhWater().get(),source,pipeline.getCustomUniforms(),pipeline);
             program.free();
         }
+        // Use the same entity transform as native Pass creation, with its real pack lighting/includes.
+        ProgramSource entity=programs.getGbuffersEntities().get();
+        java.util.Map<net.coderbot.iris.pipeline.transform.PatchShaderType,String> transformed =
+            net.coderbot.iris.pipeline.transform.TransformPatcher.patchAttributes(entity.getVertexSource().get(),
+                entity.getGeometrySource().orElse(null),entity.getTessControlSource().orElse(null),
+                entity.getTessEvalSource().orElse(null),entity.getFragmentSource().get(),
+                new net.coderbot.iris.gbuffer_overrides.matching.InputAvailability(true,true),false);
+        net.coderbot.iris.gl.program.Program entityProgram=net.coderbot.iris.gl.program.ProgramBuilder.begin("actual_pack_entity_capture",
+            transformed.get(net.coderbot.iris.pipeline.transform.PatchShaderType.VERTEX),
+            transformed.get(net.coderbot.iris.pipeline.transform.PatchShaderType.GEOMETRY),
+            transformed.get(net.coderbot.iris.pipeline.transform.PatchShaderType.FRAGMENT),com.google.common.collect.ImmutableSet.of()).build();
+        entityProgram.destroy();
     }
 
     private static DeferredWorldRenderingPipeline pipeline(int nativeDepth) {

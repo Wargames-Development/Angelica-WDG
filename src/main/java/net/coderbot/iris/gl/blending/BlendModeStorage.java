@@ -33,6 +33,25 @@ public class BlendModeStorage {
         }
     }
 
+    public static Runnable suspendOverrides() {
+        final boolean enabled=vanillaBlendEnable, locked=blendLocked, held=overrideHeld;
+        final boolean global=hasGlobalOverride, deferred=hasDeferredChanges, dirty=bufferOverridesDirty;
+        final BlendState blend=vanillaBlend.copy(); final int count=bufferOverrideCount;
+        final int[] indices=bufferOverrideIndices.clone();final boolean[] disabled=bufferOverrideIsDisable.clone();
+        final BlendState[] states=new BlendState[MAX_DRAW_BUFFERS];
+        for(int i=0;i<count;i++) states[i]=bufferOverrideStates[i].copy();
+        blendLocked=false;overrideHeld=false;hasGlobalOverride=false;hasDeferredChanges=false;
+        bufferOverrideCount=0;bufferOverridesDirty=false;
+        return () -> {
+            vanillaBlendEnable=enabled;vanillaBlend.set(blend);blendLocked=locked;overrideHeld=held;
+            hasGlobalOverride=global;hasDeferredChanges=deferred;bufferOverridesDirty=dirty;bufferOverrideCount=count;
+            System.arraycopy(indices,0,bufferOverrideIndices,0,MAX_DRAW_BUFFERS);
+            System.arraycopy(disabled,0,bufferOverrideIsDisable,0,MAX_DRAW_BUFFERS);
+            for(int i=0;i<count;i++) bufferOverrideStates[i].set(states[i]);
+            if(held) reassertBufferOverrides();
+        };
+    }
+
     public static void overrideBlend(BlendState override) {
         captureVanilla();
 

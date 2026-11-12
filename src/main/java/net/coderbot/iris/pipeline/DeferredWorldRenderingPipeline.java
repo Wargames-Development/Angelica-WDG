@@ -939,6 +939,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 	 * Called when a mod overrides the GL program away from the active Iris pass
 	 */
 	public void onModProgramOverride() {
+        if (entityGeometry != null) return;
 		if (current != null) {
 			modProgramOverrode = true;
 			programBeforeModOverride = getActivePassProgramId();
@@ -948,6 +949,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 	}
 
 	public void restorePassAfterModProgram(int newProgram) {
+        if (entityGeometry != null) return;
 		if (refreshingPass || drivingProgram || !modProgramOverrode) {
 			return;
 		}
@@ -970,6 +972,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 	private int programBeforeModOverride = -1;
 
 	public void onVanillaBlendChanged() {
+        if (entityGeometry != null) return;
 		if (matchingBlend || drivingProgram || refreshingPass) {
 			return;
 		}
@@ -994,6 +997,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 	private boolean matchingBlend;
 
 	private void matchPass() {
+        if (entityGeometry != null) { entityGeometry.use(); return; }
 		if (!shouldOverrideShaders()) {
 			return;
 		}
@@ -1008,6 +1012,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 
 	@Override
 	public void onEntityRenderBoundary() {
+        if (entityGeometry != null) { entityGeometry.use(); return; }
 		if (!shouldOverrideShaders()) {
 			return;
 		}
@@ -1019,6 +1024,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 	}
 
 	public void beginPass(Pass pass) {
+        if (entityGeometry != null) { entityGeometry.use(); return; }
 		if (current == pass) {
 			return;
 		}
@@ -1045,6 +1051,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 
 	@Override
 	public void rebindCurrentPass() {
+        if (entityGeometry != null) { entityGeometry.use(); return; }
 		final Pass pass = this.current;
 		if (pass == null) {
 			if (GLStateManager.getActiveProgram() == 0) {
@@ -1186,6 +1193,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
         Pass pass = new Pass(builder.build(), framebufferBeforeTranslucents, framebufferAfterTranslucents, alphaTestOverride,
             programDirectives.getBlendModeOverride().orElse(id.getBlendModeOverride()), bufferOverrides, shadow);
 
+        pass.geometryColourOutput = programDirectives.getDrawBuffers().length > 0 && programDirectives.getDrawBuffers()[0] == 0;
         this.customUniforms.mapholderToPass(builder, pass);
 
 		return pass;
@@ -1240,6 +1248,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 
 	@Override
 	public void setIsMainBound(boolean bound) {
+        if (entityGeometry != null) return;
 		isMainBound = bound;
 
 		if (!isRenderingWorld || isRenderingFullScreenPass || isPostChain) {
@@ -1304,7 +1313,61 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 		return shadowRenderTargets != null;
 	}
 
-	public final class Pass {
+	// Geometry captures borrow programs and read-only samplers, never world-pass lifecycle.
+    private static EntityGeometryPass entityGeometry;
+
+    int[] actorTargets(int depth, int opaqueDepth) {
+        final ImmutableSet<Integer> flips = getFlippedAfterTranslucent();
+        int[] result = new int[10];
+        int[] indices = {0, 6, 4};
+        final String name = Iris.getCurrentPackName().toLowerCase(java.util.Locale.ROOT);
+        final boolean actorMarkers = name.contains("bountifulstars") || name.contains("complementary");
+        for (int i = 0; i < indices.length; i++) {
+            if (i > 0 && !actorMarkers) continue;
+            final var target = renderTargets.get(indices[i]);
+            result[i] = target == null ? 0 : flips.contains(indices[i]) ? target.getAltTexture() : target.getMainTexture();
+        }
+        result[3] = depth; result[4] = opaqueDepth; result[5] = renderTargets.getDepthTexture();
+        final Framebuffer output = ScopeFrameUpdateNotifier.framebuffer(updateNotifier);
+        result[6] = output.framebufferWidth; result[7] = output.framebufferHeight;
+        result[8] = renderTargets.getDepthTextureNoTranslucents().getTextureId();
+        result[9] = renderTargets.getDepthTextureNoHand().getTextureId();
+        return result;
+    }
+
+    public AutoCloseable beginEntityGeometry() {
+        if (entityGeometry != null) throw new IllegalStateException("Nested entity geometry capture");
+        if (!GLStateManager.isMainThread() || !isRenderingLevelGeometry() || ssboHolder != null
+            || !customImages.isEmpty() || net.coderbot.iris.shadows.ShadowRenderingState.areShadowsCurrentlyBeingRendered()) return null;
+        final Pass pass = table.match(RenderCondition.ENTITIES, new InputAvailability(true, true));
+        if (pass == null || pass.program == null || !pass.geometryColourOutput || pass.program.getActiveImages() != 0) return null;
+        final int draw = GLStateManager.getDrawFramebuffer();
+        if (draw == ScopeFrameUpdateNotifier.framebuffer(updateNotifier).framebufferObject
+            || draw == pass.framebufferBeforeTranslucents.getId() || draw == pass.framebufferAfterTranslucents.getId())
+            throw new IllegalArgumentException("Entity capture must not target the enclosing scene");
+        final EntityGeometryPass capture = new EntityGeometryPass(pass.program, () -> customUniforms.push(pass),
+            () -> { if (pass.alphaTestOverride != null) pass.alphaTestOverride.apply(); });
+        entityGeometry = capture;
+        try { capture.use(); }
+        catch (RuntimeException | LinkageError failure) {
+            finishEntityGeometry(capture);throw failure;
+        }
+        return () -> finishEntityGeometry(capture);
+    }
+
+    private void finishEntityGeometry(EntityGeometryPass capture) {
+        if (entityGeometry != capture) return;
+        try {
+            capture.close();
+            // glUseProgram alone cannot restore dynamic uniform listeners detached by the private draw.
+            if (current != null && current.program != null && GLStateManager.getActiveProgram() == current.program.getProgramId()) {
+                current.program.use();customUniforms.push(current);
+            }
+        } finally { entityGeometry = null; }
+    }
+
+    public final class Pass {
+        private boolean geometryColourOutput;
 		@Nullable
 		private final Program program;
 		private final GlFramebuffer framebufferBeforeTranslucents;
@@ -1335,6 +1398,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 		}
 
 		public void use() {
+        if (entityGeometry != null) { entityGeometry.use(); return; }
 			DepthColorStorage.unlockDepthColor();
 
 			if (isBeforeTranslucent) {
@@ -2194,6 +2258,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 
 	@Override
 	public void setOverridePhase(WorldRenderingPhase phase) {
+        if (entityGeometry != null) return;
 		this.overridePhase = phase;
 		syncPhaseDebugGroup();
 		matchPass();
@@ -2202,6 +2267,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 
 	@Override
 	public void setPhase(WorldRenderingPhase phase) {
+        if (entityGeometry != null) return;
 		this.phase = phase;
 		syncPhaseDebugGroup();
 		matchPass();
@@ -2233,18 +2299,21 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 
 	@Override
 	public void setInputs(InputAvailability availability) {
+        if (entityGeometry != null) return;
 		this.inputs = availability;
 		matchPass();
 	}
 
 	@Override
 	public void setSpecialCondition(SpecialCondition special) {
+        if (entityGeometry != null) return;
 		this.special = special;
 		matchPass();
 	}
 
 	@Override
 	public void setDeclaredTranslucency(@Nullable Boolean translucent) {
+        if (entityGeometry != null) return;
 		this.declaredTranslucent = translucent;
 		matchPass();
 	}

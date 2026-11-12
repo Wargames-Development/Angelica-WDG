@@ -32,7 +32,7 @@ import java.util.function.BooleanSupplier;
 /** Optional Flans scope. Public Iris pipeline getters and primary terrain caches are never replaced. */
 public final class FlansScopePass {
     private static final IrisCeleritasChunkProgramOverrides terrainPrograms = new IrisCeleritasChunkProgramOverrides();
-    private static boolean rendering, translucent, reportedReady;
+    private static boolean rendering, translucent, reportedReady, sceneGeometry;
     private static int diagnosticFrames;
     private static DeferredWorldRenderingPipeline pipeline, primary, failedPrimary;
     private static Framebuffer output;
@@ -115,7 +115,8 @@ public final class FlansScopePass {
                 mc.renderGlobal.renderSky(partialTicks);
                 pipeline.setPhase(WorldRenderingPhase.NONE);
                 pipeline.renderShadows(mc.entityRenderer, Camera.INSTANCE); // Prepare passes only; shadow maps are read-only.
-                if (!drawScene.getAsBoolean()) return false;
+                sceneGeometry = true;
+                try { if (!drawScene.getAsBoolean()) return false; } finally { sceneGeometry = false; }
                 if (traceFrame != 0) Iris.logger.info("Flans scope frame {}: geometry complete", traceFrame);
                 pipeline.finalizeLevelRendering();
                 if (traceFrame != 0) Iris.logger.info("Flans scope frame {}: shader composite complete", traceFrame);
@@ -165,6 +166,14 @@ public final class FlansScopePass {
     static int getEmptyDistantDepth() { return emptyDistantDepth.getTextureId(); }
     static int getDistantDepth(boolean opaque) {
         return distantTerrain == null ? getEmptyDistantDepth() : distantTerrain.depth(opaque);
+    }
+
+    public static int[] actorTargets() {
+        if (!sceneGeometry || !translucent || distantTerrain == null) return null;
+        return pipeline.actorTargets(distantTerrain.depth(false), distantTerrain.depth(true));
+    }
+    public static FloatBuffer actorProjection() {
+        return sceneGeometry && distantTerrain != null ? distantTerrain.actorProjection() : null;
     }
 
     public static boolean hasDistantTerrain() { return rendering && distantTerrain != null; }

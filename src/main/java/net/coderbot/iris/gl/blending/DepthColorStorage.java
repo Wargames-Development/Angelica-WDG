@@ -19,6 +19,13 @@ public class DepthColorStorage {
 
     private static final IntOpenHashSet ownedPrograms = new IntOpenHashSet();
 
+    public static Runnable suspendOverrides() {
+        final boolean enabled=vanillaDepthEnable, locked=depthColorLocked, held=overrideHeld;
+        final ColorMask colour=vanillaColor.copy();
+        depthColorLocked=false;overrideHeld=false;
+        return () -> { vanillaDepthEnable=enabled;vanillaColor.set(colour);depthColorLocked=locked;overrideHeld=held; };
+    }
+
     public static void registerOwnedProgram(int programId) {
         ownedPrograms.add(programId);
     }

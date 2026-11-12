@@ -95,6 +95,8 @@ public final class ScopeDistantTerrain {
         } finally { active = null; LodRendererEvents.popDhMatrices(); }
     }
 
+    public java.nio.FloatBuffer actorProjection() { return projection.get(org.lwjgl.BufferUtils.createFloatBuffer(16)); }
+
     public int depth(boolean opaque) { return (opaque ? opaqueDepth : depth).getTextureId(); }
 
     public void destroy() {
