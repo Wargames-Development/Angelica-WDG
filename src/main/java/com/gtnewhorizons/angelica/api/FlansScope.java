@@ -19,6 +19,11 @@ public final class FlansScope {
      * Use immutable copies for sampled depths; only the returned private attachments may be written. */
     public static int[] actorTargets() { return FlansScopePass.actorTargets(); }
     public static FloatBuffer actorProjection() { return FlansScopePass.actorProjection(); }
+    /** Additive depth-grid metadata. Valid only in the private scene callback.
+     * Inspect uniforms on this program without binding or updating it. The source
+     * is the option-preprocessed vertex source used to compile this private program. */
+    public static int actorTerrainProgram() { return FlansScopePass.actorTerrainProgram(); }
+    public static String actorTerrainSource() { return FlansScopePass.actorTerrainSource(); }
     public static void beginTranslucents() { FlansScopePass.beginTranslucents(); }
     public static void phase(String name) { FlansScopePass.phase(name); }
     /** Optional additive v1 extension. Only valid inside the scene callback.

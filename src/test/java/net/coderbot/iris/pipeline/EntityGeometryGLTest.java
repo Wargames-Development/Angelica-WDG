@@ -27,6 +27,71 @@ class EntityGeometryGLTest {
     @AfterAll static void cleanup() throws Exception {
         Field field=net.minecraft.client.Minecraft.class.getDeclaredField("theMinecraft");field.setAccessible(true);field.set(null,oldMinecraft);
     }
+    @Test void externalCompositorKeepsItsProgramAndTargetUntilItReturnsOwnership() throws Exception {
+        int scene=target(), composite=target(), vao=GLStateManager.glGenVertexArrays();
+        Program nativeProgram=solidProgram("native_entity", "1,0,0,1");
+        Program compositor=solidProgram("external_actor_composite", "0,1,0,1");
+        DeferredWorldRenderingPipeline pipeline=mock(DeferredWorldRenderingPipeline.class,CALLS_REAL_METHODS);
+        net.coderbot.iris.gl.framebuffer.GlFramebuffer framebuffer=mock(net.coderbot.iris.gl.framebuffer.GlFramebuffer.class);
+        when(framebuffer.getId()).thenReturn(scene);
+        doAnswer(call -> {
+            GLStateManager.glBindFramebuffer(GL30.GL_FRAMEBUFFER,scene);
+            return null;
+        }).when(framebuffer).bind();
+        java.lang.reflect.Constructor<?> constructor=DeferredWorldRenderingPipeline.Pass.class.getDeclaredConstructors()[0];
+        constructor.setAccessible(true);
+        DeferredWorldRenderingPipeline.Pass nativePass=(DeferredWorldRenderingPipeline.Pass)constructor.newInstance(
+            pipeline,nativeProgram,framebuffer,framebuffer,null,null,null,false);
+        set(pipeline,"customUniforms",mock(net.coderbot.iris.uniforms.custom.CustomUniforms.class));
+        net.minecraft.client.shader.Framebuffer output=mock(net.minecraft.client.shader.Framebuffer.class);
+        output.framebufferWidth=output.framebufferHeight=4;
+        set(pipeline,"updateNotifier",new net.coderbot.iris.uniforms.ScopeFrameUpdateNotifier(()->output));
+        set(pipeline,"table",new net.coderbot.iris.gbuffer_overrides.matching.ProgramTable<>((condition,inputs)->nativePass));
+        set(pipeline,"inputs",new net.coderbot.iris.gbuffer_overrides.matching.InputAvailability(true,true));
+        set(pipeline,"phase",WorldRenderingPhase.ENTITIES);
+        set(pipeline,"isRenderingWorld",true);set(pipeline,"isMainBound",true);
+        try {
+            GLStateManager.glBindVertexArray(vao);GLStateManager.glViewport(0,0,4,4);
+            GLStateManager.glDisable(GL11.GL_DEPTH_TEST);GLStateManager.glDisable(GL11.GL_SCISSOR_TEST);
+            GLStateManager.glColorMask(true,true,true,true);
+            for(int frame=0;frame<4;frame++) {
+                pipeline.beginPass(nativePass);
+                GLStateManager.glBindFramebuffer(GL30.GL_FRAMEBUFFER,scene);
+                GLStateManager.glClearColor(.125f,.25f,.5f,1);GLStateManager.glClear(GL11.GL_COLOR_BUFFER_BIT);
+                GLStateManager.glBindFramebuffer(GL30.GL_FRAMEBUFFER,composite);
+                GLStateManager.glClearColor(0,0,0,0);GLStateManager.glClear(GL11.GL_COLOR_BUFFER_BIT);
+                // These are the callbacks IrisGLSMBridge delivers for a foreign
+                // compositor's program, blend and texture-unit changes in ENTITIES.
+                pipeline.onModProgramOverride();compositor.use();
+                pipeline.onVanillaBlendChanged();
+                pipeline.setInputs(new net.coderbot.iris.gbuffer_overrides.matching.InputAvailability(false,false));
+                pipeline.onEntityRenderBoundary();pipeline.rebindCurrentPass();
+                assertEquals(compositor.getProgramId(),GLStateManager.getActiveProgram(),"entity routing stole the compositor program");
+                assertEquals(composite,GLStateManager.getDrawFramebuffer(),"entity routing stole the compositor target");
+                GLStateManager.glDisable(GL11.GL_BLEND);GLStateManager.glDrawArrays(GL11.GL_TRIANGLES,0,3);
+                FloatBuffer result=pixel(composite);assertEquals(0f,result.get(0),.001f);assertEquals(1f,result.get(1),.001f);
+                FloatBuffer untouched=pixel(scene);assertEquals(.125f,untouched.get(0),.001f);assertEquals(.25f,untouched.get(1),.001f);
+                // An unrelated foreign program must not hand ownership back.
+                pipeline.restorePassAfterModProgram(compositor.getProgramId());
+                assertNull(pipeline.getActivePassProgram());
+                pipeline.restorePassAfterModProgram(frame%2==0?nativeProgram.getProgramId():0);
+                assertSame(nativePass,pipeline.getActivePassProgram());
+                assertEquals(nativeProgram.getProgramId(),GLStateManager.getActiveProgram());
+                assertEquals(scene,GLStateManager.getDrawFramebuffer());
+            }
+            assertEquals(GL11.GL_NO_ERROR,GLStateManager.glGetError());
+        } finally {
+            nativeProgram.destroy();compositor.destroy();GLStateManager.glBindVertexArray(0);GLStateManager.glDeleteVertexArrays(vao);
+            destroyTarget(scene);destroyTarget(composite);
+        }
+    }
+    private static Program solidProgram(String name,String colour) {
+        return ProgramBuilder.begin(name,"#version 330 core\nvoid main(){vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2)*2.-1.;gl_Position=vec4(p,0,1);}",null,
+            "#version 330 core\nout vec4 colour;void main(){colour=vec4("+colour+");}",com.google.common.collect.ImmutableSet.of()).build();
+    }
+    private static void set(Object object,String name,Object value) throws Exception {
+        Field field=DeferredWorldRenderingPipeline.class.getDeclaredField(name);field.setAccessible(true);field.set(object,value);
+    }
     @Test void nestedPassCallbacksKeepHdrCoverageAndLocalProjectionOffThePrimaryTarget() throws Exception {
         int primary=target(), capture=target(), vao=GLStateManager.glGenVertexArrays();
         Program program=ProgramBuilder.begin("entity_geometry_contract",

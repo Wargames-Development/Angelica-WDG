@@ -172,6 +172,9 @@ class ScopeDistantTerrainGLTest {
         when(pipeline.createDHFramebuffer(source,true)).thenReturn(water);
         ScopeDistantTerrain terrain = new ScopeDistantTerrain(pipeline,4,4);
         try {
+            int previousProgram=GL11.glGetInteger(GL20.GL_CURRENT_PROGRAM);
+            assertTrue(GL20.glIsProgram(terrain.actorTerrainProgram()));
+            assertEquals(previousProgram,GL11.glGetInteger(GL20.GL_CURRENT_PROGRAM),"metadata must not bind the terrain program");
             assertNotEquals(terrain.depth(false), terrain.depth(true));
             assertNotEquals(nativeDepth.getTextureId(),terrain.depth(false));
             for (int sample = 0; sample < 3; sample++) {

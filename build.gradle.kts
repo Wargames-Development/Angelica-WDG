@@ -199,6 +199,11 @@ val glCoreTest by tasks.registering(Test::class) {
 
     configureAngelicaJava8()
     mustRunAfter(tasks.test)
+    providers.gradleProperty("fmurCameraRuntime").orNull?.let { runtime ->
+        val companion = file(runtime)
+        inputs.files(companion)
+        systemProperty("fmur.camera.runtime", companion.absolutePath)
+    }
 }
 
 tasks.test { finalizedBy(glCoreTest) }

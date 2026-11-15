@@ -96,6 +96,7 @@ public final class ScopeDistantTerrain {
     }
 
     public java.nio.FloatBuffer actorProjection() { return projection.get(org.lwjgl.BufferUtils.createFloatBuffer(16)); }
+    public int actorTerrainProgram() { return solid == null ? 0 : solid.getProgramId(); }
 
     public int depth(boolean opaque) { return (opaque ? opaqueDepth : depth).getTextureId(); }
 

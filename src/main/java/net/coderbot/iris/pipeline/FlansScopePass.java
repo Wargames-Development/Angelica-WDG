@@ -175,6 +175,13 @@ public final class FlansScopePass {
     public static FloatBuffer actorProjection() {
         return sceneGeometry && distantTerrain != null ? distantTerrain.actorProjection() : null;
     }
+    public static int actorTerrainProgram() {
+        return sceneGeometry && distantTerrain != null ? distantTerrain.actorTerrainProgram() : 0;
+    }
+    public static String actorTerrainSource() {
+        return sceneGeometry && distantTerrain != null
+            ? pipeline.getDHTerrainShader().flatMap(source -> source.getVertexSource()).orElse("") : "";
+    }
 
     public static boolean hasDistantTerrain() { return rendering && distantTerrain != null; }
 

@@ -43,6 +43,8 @@ public class IrisLodRenderProgram {
     // Fog/Clip Uniforms
     public final int clipDistanceUniform;
     private final int id;
+    /** Read-only handle for depth-grid alignment; callers must not bind or modify uniforms. */
+    public int getProgramId() { return id; }
     private final ProgramUniforms uniforms;
     private final CustomUniforms customUniforms;
     private final ProgramSamplers samplers;

@@ -1006,6 +1006,10 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 	}
 
 	private void matchPass(RenderCondition condition) {
+		// A mod's program owns its framebuffer and blend/texture changes until it
+		// restores the saved program (or zero). Rematching here can replace both
+		// halfway through an offscreen compositor, notably the DH PiP actor pass.
+		if (modProgramOverrode && !refreshingPass) return;
 		currentCondition = condition;
 		beginPass(table.match(condition, inputs));
 	}
