@@ -7,6 +7,7 @@ import net.coderbot.iris.gl.framebuffer.GlFramebuffer;
 import net.coderbot.iris.gl.program.ProgramSamplers;
 import net.coderbot.iris.gl.program.ProgramUniforms;
 import net.coderbot.iris.pipeline.DeferredWorldRenderingPipeline;
+import net.coderbot.iris.pipeline.FlansScopePass;
 import net.coderbot.iris.pipeline.transform.ShaderTransformer;
 import net.coderbot.iris.rendertarget.DepthTexture;
 import com.gtnewhorizons.angelica.glsm.texture.DepthBufferFormat;
@@ -70,7 +71,7 @@ class ScopeDistantTerrainGLTest {
         return source;
     }
 
-    @Test void configuredLocalShaderPackCompilesBothPrivateDhPrograms() throws Exception {
+    @Test void configuredLocalShaderPackCompilesPrivateTerrainEntitiesAndDeferredFog() throws Exception {
         String path = System.getProperty("angelica.scopePack");
         org.junit.jupiter.api.Assumptions.assumeTrue(path != null, "Supply a local pack shaders directory for companion validation");
         ShaderTransformer.init();
@@ -97,6 +98,21 @@ class ScopeDistantTerrainGLTest {
             transformed.get(net.coderbot.iris.pipeline.transform.PatchShaderType.GEOMETRY),
             transformed.get(net.coderbot.iris.pipeline.transform.PatchShaderType.FRAGMENT),com.google.common.collect.ImmutableSet.of()).build();
         entityProgram.destroy();
+
+        ProgramSource deferred = java.util.Arrays.stream(programs.getDeferred())
+            .filter(java.util.Objects::nonNull).filter(program -> program.getName().equals("deferred1")).findFirst().orElseThrow();
+        var fog = net.coderbot.iris.pipeline.transform.TransformPatcher.patchComposite(deferred.getVertexSource().get(),
+            deferred.getGeometrySource().orElse(null), deferred.getFragmentSource().get());
+        net.coderbot.iris.gl.program.Program deferredProgram = net.coderbot.iris.gl.program.ProgramBuilder.begin("actual_pack_deferred_fog",
+            fog.get(net.coderbot.iris.pipeline.transform.PatchShaderType.VERTEX),
+            fog.get(net.coderbot.iris.pipeline.transform.PatchShaderType.GEOMETRY),
+            fog.get(net.coderbot.iris.pipeline.transform.PatchShaderType.FRAGMENT), com.google.common.collect.ImmutableSet.of()).build();
+        try {
+            assertTrue(GL20.glGetUniformLocation(deferredProgram.getProgramId(), "dhDepthTex") >= 0);
+            assertTrue(GL20.glGetUniformLocation(deferredProgram.getProgramId(), "depthtex0") >= 0);
+        } finally {
+            deferredProgram.destroy();
+        }
     }
 
     private static DeferredWorldRenderingPipeline pipeline(int nativeDepth) {
@@ -158,7 +174,7 @@ class ScopeDistantTerrainGLTest {
         }
     }
 
-    @Test void privateOpaqueDepthSnapshotSurvivesWaterAndBothDepthsResetEachSample() {
+    @Test void privateOpaqueDepthSnapshotSurvivesWaterAndBothDepthsResetEachSample() throws Exception {
         ShaderTransformer.init();
         DepthTexture nativeDepth = new DepthTexture(4,4,DepthBufferFormat.DEPTH32F);
         DeferredWorldRenderingPipeline pipeline = pipeline(nativeDepth.getTextureId());
@@ -181,11 +197,76 @@ class ScopeDistantTerrainGLTest {
                 terrain.clear(); assertDepth(reader,terrain.depth(true),1); assertDepth(reader,terrain.depth(false),1);
                 solid.bind(); GLStateManager.glClearDepth(.6); GLStateManager.glClear(GL11.GL_DEPTH_BUFFER_BIT);
                 terrain.end(0);
+                assertActorTargetsBeforeDeferred(pipeline, terrain);
                 water.bind(); GLStateManager.glClearDepth(.3); GLStateManager.glClear(GL11.GL_DEPTH_BUFFER_BIT);
                 assertDepth(reader,terrain.depth(true),.6f); assertDepth(reader,terrain.depth(false),.3f);
             }
             assertEquals(GL11.GL_NO_ERROR,GLStateManager.glGetError());
         } finally { terrain.destroy(); nativeDepth.destroy(); solid.destroy(); water.destroy(); reader.destroy(); GLStateManager.glDeleteTextures(colour); }
+    }
+
+    private static void assertActorTargetsBeforeDeferred(DeferredWorldRenderingPipeline pipeline, ScopeDistantTerrain terrain) throws Exception {
+        int full = terrain.depth(false), opaque = terrain.depth(true);
+        int[] targets = {1, 2, 3, full, opaque, 6, 16, 16, 0, 0};
+        var lookup = DeferredWorldRenderingPipeline.class.getDeclaredMethod("actorTargets", int.class, int.class);
+        lookup.setAccessible(true);
+        when((int[]) lookup.invoke(pipeline, full, opaque)).thenReturn(targets);
+        String[] fields = {"pipeline", "distantTerrain", "sceneGeometry", "translucent"};
+        Object[] values = {pipeline, terrain, true, false};
+        var previous = new java.util.LinkedHashMap<Field, Object>();
+        try {
+            for (int i = 0; i < fields.length; i++) {
+                Field field = FlansScopePass.class.getDeclaredField(fields[i]);
+                field.setAccessible(true);
+                previous.put(field, field.get(null));
+                field.set(null, values[i]);
+            }
+            assertSame(targets, FlansScopePass.actorTargets());
+        } finally {
+            for (var entry : previous.entrySet()) entry.getKey().set(null, entry.getValue());
+        }
+    }
+
+    @Test void primaryOpaqueDepthIsAvailableBeforeWaterWithoutChangingCallerBindings() throws Exception {
+        DHCompatInternal compat = new DHCompatInternal(null, false);
+        DepthTexture depth = new DepthTexture(4, 4, DepthBufferFormat.DEPTH32F);
+        GlFramebuffer solid = new GlFramebuffer(), reader = new GlFramebuffer();
+        solid.addDepthAttachment(depth.getTextureId());
+        solid.noDrawBuffers();
+        reader.noDrawBuffers();
+        int texture = colour();
+        compat.createDepthTex(4, 4);
+        for (String name : new String[]{"dhTerrainFramebuffer", "storedDepthTex"}) {
+            Field field = DHCompatInternal.class.getDeclaredField(name);
+            field.setAccessible(true);
+            field.set(compat, name.equals("storedDepthTex") ? depth.getTextureId() : solid);
+        }
+        try {
+            for (int frame = 0; frame < 2; frame++) {
+                float opaque = .6f + frame * .1f;
+                solid.bind();
+                GLStateManager.glDisable(GL11.GL_SCISSOR_TEST);
+                GLStateManager.glDepthMask(true);
+                GLStateManager.glClearDepth(opaque);
+                GLStateManager.glClear(GL11.GL_DEPTH_BUFFER_BIT);
+                reader.bindAsReadBuffer();
+                GLStateManager.glBindTexture(GL11.GL_TEXTURE_2D, texture);
+                compat.copyTranslucents(4, 4);
+                assertEquals(reader.getId(), GLStateManager.getReadFramebuffer());
+                assertEquals(solid.getId(), GLStateManager.getDrawFramebuffer());
+                assertEquals(texture, GLStateManager.glGetInteger(GL11.GL_TEXTURE_BINDING_2D));
+                GLStateManager.glClearDepth(.3);
+                GLStateManager.glClear(GL11.GL_DEPTH_BUFFER_BIT);
+                assertDepth(reader, compat.getDepthTexNoTranslucent(), opaque);
+            }
+            assertEquals(GL11.GL_NO_ERROR, GLStateManager.glGetError());
+        } finally {
+            ((DepthTexture) field(compat, "depthTexNoTranslucent")).destroy();
+            depth.destroy();
+            solid.destroy();
+            reader.destroy();
+            GLStateManager.glDeleteTextures(texture);
+        }
     }
 
     private static void assertDepth(GlFramebuffer reader, int texture, float expected) {

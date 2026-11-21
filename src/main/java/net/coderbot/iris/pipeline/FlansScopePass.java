@@ -169,7 +169,7 @@ public final class FlansScopePass {
     }
 
     public static int[] actorTargets() {
-        if (!sceneGeometry || !translucent || distantTerrain == null) return null;
+        if (!sceneGeometry || distantTerrain == null) return null;
         return pipeline.actorTargets(distantTerrain.depth(false), distantTerrain.depth(true));
     }
     public static FloatBuffer actorProjection() {

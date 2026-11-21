@@ -1321,7 +1321,7 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
     private static EntityGeometryPass entityGeometry;
 
     int[] actorTargets(int depth, int opaqueDepth) {
-        final ImmutableSet<Integer> flips = getFlippedAfterTranslucent();
+        final ImmutableSet<Integer> flips = flippedGbuffers.get();
         int[] result = new int[10];
         int[] indices = {0, 6, 4};
         final String name = Iris.getCurrentPackName().toLowerCase(java.util.Locale.ROOT);
@@ -1334,8 +1334,10 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
         result[3] = depth; result[4] = opaqueDepth; result[5] = renderTargets.getDepthTexture();
         final Framebuffer output = ScopeFrameUpdateNotifier.framebuffer(updateNotifier);
         result[6] = output.framebufferWidth; result[7] = output.framebufferHeight;
-        result[8] = renderTargets.getDepthTextureNoTranslucents().getTextureId();
-        result[9] = renderTargets.getDepthTextureNoHand().getTextureId();
+        if (!isBeforeTranslucent) {
+            result[8] = renderTargets.getDepthTextureNoTranslucents().getTextureId();
+            result[9] = renderTargets.getDepthTextureNoHand().getTextureId();
+        }
         return result;
     }
 
@@ -1936,6 +1938,9 @@ public class DeferredWorldRenderingPipeline implements WorldRenderingPipeline, R
 
 	@Override
 	public void beginHand() {
+		if (!secondaryView && isBeforeTranslucent && isRenderingLevelGeometry()) {
+			dhCompat.renderActorsBeforeDeferred();
+		}
 		isRenderingFullScreenPass = true;
 		beginPass(null);
 		currentCondition = null;

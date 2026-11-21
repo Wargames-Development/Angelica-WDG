@@ -17,6 +17,8 @@ public class DHCompat {
     private static boolean lastIncompatible;
     private DHCompatInternal compatInternalInstance;
     private final static Matrix4f tempProj = new Matrix4f();
+    private static boolean searchedActorPass;
+    private static MethodHandle actorPass;
 
     public DHCompat(DeferredWorldRenderingPipeline pipeline, boolean renderDHShadow) {
         if (pipeline == null) {
@@ -129,5 +131,25 @@ public class DHCompat {
 
     public DHCompatInternal getInstance() {
         return compatInternalInstance;
+    }
+
+    public void renderActorsBeforeDeferred() {
+        if (compatInternalInstance == null || compatInternalInstance.getStoredDepthTex() <= 0) return;
+        if (!searchedActorPass) {
+            searchedActorPass = true;
+            try {
+                Class<?> renderer = Class.forName("com.seibel.distanthorizons.forge17.effects.ActorRenderer", false, DHCompat.class.getClassLoader());
+                actorPass = MethodHandles.publicLookup().findStatic(renderer, "renderBeforeDeferred", MethodType.methodType(void.class));
+            } catch (ReflectiveOperationException | LinkageError unavailable) {
+                // Older DH builds retain their pre-composite actor pass.
+            }
+        }
+        if (actorPass == null) return;
+        try {
+            actorPass.invokeExact();
+        } catch (Throwable failure) {
+            actorPass = null;
+            Iris.logger.warn("Distant actors could not enter the opaque shader stage", failure);
+        }
     }
 }

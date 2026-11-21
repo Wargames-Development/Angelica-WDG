@@ -205,11 +205,16 @@ public class LodRendererEvents {
             @Override
             public void beforeCleanup(DhApiEventParam<DhApiRenderParam> event) {
                 popDhMatrices();
-                if (getInstance().shouldOverride) {
+                DHCompatInternal instance = getInstance();
+                if (instance.shouldOverride) {
                     if (ShadowRenderingState.areShadowsCurrentlyBeingRendered()) {
-                        getInstance().getShadowShader().unbind();
+                        instance.getShadowShader().unbind();
                     } else {
-                        getInstance().getSolidShader().unbind();
+                        instance.getSolidShader().unbind();
+                        // Deferred shaders and actor occlusion both need this frame's opaque DH depth.
+                        if (event.value.renderPass == EDhApiRenderPass.OPAQUE && textureWidth > 0 && textureHeight > 0) {
+                            instance.copyTranslucents(textureWidth, textureHeight);
+                        }
                         if (atTranslucent) {
                             GLStateManager.enableCull();
                         }
@@ -361,7 +366,6 @@ public class LodRendererEvents {
                     }
 
                     if (instance.shouldOverride && instance.getTranslucentFB() != null) {
-                        instance.copyTranslucents(textureWidth, textureHeight);
                         instance.getTranslucentShader().bind();
                         Matrix4f projection = RenderingState.INSTANCE.getProjectionMatrix();
                         GLStateManager.disableCull();

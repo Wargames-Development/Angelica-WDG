@@ -19,6 +19,7 @@ import net.coderbot.iris.uniforms.CapturedRenderingState;
 import net.irisshaders.iris.api.v0.IrisApi;
 import net.minecraft.client.Minecraft;
 import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL30;
 
 import java.io.IOException;
 
@@ -258,13 +259,23 @@ public class DHCompatInternal {
     }
 
     public void copyTranslucents(int width, int height) {
-        if (translucentDepthDirty) {
-            translucentDepthDirty = false;
-            GLStateManager.glBindTexture(GL11.GL_TEXTURE_2D, depthTexNoTranslucent.getTextureId());
-            dhTerrainFramebuffer.bindAsReadBuffer();
-            GLStateManager.glCopyTexImage2D(GL11.GL_TEXTURE_2D, 0, DepthBufferFormat.DEPTH32F.getGlInternalFormat(), 0, 0, width, height, 0);
-        } else {
-            DepthCopyStrategy.fastest(false).copy(dhTerrainFramebuffer, storedDepthTex, null, depthTexNoTranslucent.getTextureId(), width, height);
+        int read = GLStateManager.getReadFramebuffer();
+        try {
+            if (translucentDepthDirty) {
+                int texture = GLStateManager.glGetInteger(GL11.GL_TEXTURE_BINDING_2D);
+                try {
+                    GLStateManager.glBindTexture(GL11.GL_TEXTURE_2D, depthTexNoTranslucent.getTextureId());
+                    dhTerrainFramebuffer.bindAsReadBuffer();
+                    GLStateManager.glCopyTexImage2D(GL11.GL_TEXTURE_2D, 0, DepthBufferFormat.DEPTH32F.getGlInternalFormat(), 0, 0, width, height, 0);
+                    translucentDepthDirty = false;
+                } finally {
+                    GLStateManager.glBindTexture(GL11.GL_TEXTURE_2D, texture);
+                }
+            } else {
+                DepthCopyStrategy.fastest(false).copy(dhTerrainFramebuffer, storedDepthTex, null, depthTexNoTranslucent.getTextureId(), width, height);
+            }
+        } finally {
+            GLStateManager.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, read);
         }
     }
 
