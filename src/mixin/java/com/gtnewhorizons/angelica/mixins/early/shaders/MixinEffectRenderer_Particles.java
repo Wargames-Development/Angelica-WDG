@@ -29,7 +29,7 @@ public class MixinEffectRenderer_Particles {
         require = 1
     )
     private int iris$splitRun(EntityFX particle, float partialTicks) {
-        ParticleRunSplitter.splitIfNeeded(particle, Tessellator.instance, partialTicks);
+        ParticleRunSplitter.splitIfNeeded(particle, Tessellator.instance);
         return particle.getBrightnessForRender(partialTicks);
     }
 }

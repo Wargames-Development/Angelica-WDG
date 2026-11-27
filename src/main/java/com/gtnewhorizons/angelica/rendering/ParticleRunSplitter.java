@@ -3,6 +3,8 @@ package com.gtnewhorizons.angelica.rendering;
 import com.gtnewhorizons.angelica.client.rendering.DeferredDrawBatcher;
 import com.gtnewhorizons.angelica.rendering.celeritas.SpriteExtension;
 import net.coderbot.iris.layer.GbufferPrograms;
+import net.coderbot.iris.pipeline.DeferredWorldRenderingPipeline;
+import net.coderbot.iris.pipeline.FlansScopePass;
 import net.minecraft.client.particle.EntityCloudFX;
 import net.minecraft.client.particle.EntityFX;
 import net.minecraft.client.particle.EntityFireworkOverlayFX;
@@ -19,15 +21,20 @@ import org.embeddedt.embeddium.impl.render.chunk.sprite.SpriteTransparencyLevel;
 public final class ParticleRunSplitter {
 
     private static boolean runTranslucent;
+    private static boolean shaderRun;
 
     private ParticleRunSplitter() {}
 
     public static void beginRun() {
         runTranslucent = false;
+        shaderRun = FlansScopePass.renderPipeline() instanceof DeferredWorldRenderingPipeline;
         GbufferPrograms.setTranslucencyDeclaration(Boolean.FALSE);
     }
 
-    public static void splitIfNeeded(EntityFX particle, Tessellator tessellator, float partialTicks) {
+    public static void splitIfNeeded(EntityFX particle, Tessellator tessellator) {
+        if (!shaderRun) {
+            return;
+        }
         final boolean translucent = isTranslucent(particle);
         if (translucent == runTranslucent) {
             return;
@@ -43,7 +50,7 @@ public final class ParticleRunSplitter {
         GbufferPrograms.setTranslucencyDeclaration(translucent);
 
         tessellator.startDrawingQuads();
-        tessellator.setBrightness(particle.getBrightnessForRender(partialTicks));
+        // The redirected brightness call immediately supplies the first vertex's light.
         if (batcherWasActive) {
             DeferredDrawBatcher.enter();
         }
