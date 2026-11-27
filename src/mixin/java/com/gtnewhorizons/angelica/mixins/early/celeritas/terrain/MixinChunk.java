@@ -3,6 +3,7 @@ package com.gtnewhorizons.angelica.mixins.early.celeritas.terrain;
 import java.util.Map;
 
 import net.minecraft.block.Block;
+import net.minecraft.world.chunk.NibbleArray;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.ChunkPosition;
 import net.minecraft.world.World;
@@ -110,43 +111,66 @@ public abstract class MixinChunk implements IChunkTileEntityMapHolder {
 
     @Inject(method = "fillChunk", at = @At("RETURN"))
     private void angelica$createTileEntities(byte[] data, int primaryBitMask, int addBitMask, boolean groundUp, CallbackInfo ci) {
-        ((ConcurrentTileEntityMap) this.chunkTileEntityMap).withWriteLock(() -> {
-            final boolean hasExistingTEs = !this.chunkTileEntityMap.isEmpty();
+        if (primaryBitMask == 0) return;
+        final ConcurrentTileEntityMap tileEntities = (ConcurrentTileEntityMap) this.chunkTileEntityMap;
+        tileEntities.writeLock();
+        try {
+            final boolean hasExistingTEs = !tileEntities.isEmpty();
 
             for (int sectionY = 0; sectionY < this.storageArrays.length; sectionY++) {
                 if ((primaryBitMask & (1 << sectionY)) == 0) continue;
 
                 final ExtendedBlockStorage section = this.storageArrays[sectionY];
                 if (section == null) continue;
+                // Raw IDs are safe for vanilla storage. Keep virtual lookups for custom sections.
+                final boolean vanillaStorage = section.getClass() == ExtendedBlockStorage.class;
+                if (vanillaStorage && section.isEmpty()) continue;
+                final boolean rawIds = vanillaStorage && !ModStatus.isNEIDLoaded && !ModStatus.isEIDLoaded;
+                final byte[] lowIds = rawIds ? section.getBlockLSBArray() : null;
+                final NibbleArray highIds = rawIds ? section.getBlockMSBArray() : null;
 
                 final int baseY = sectionY << 4;
-                for (int y = 0; y < 16; y++) {
-                    final int worldY = baseY + y;
-                    for (int z = 0; z < 16; z++) {
-                        for (int x = 0; x < 16; x++) {
-                            final Block block = section.getBlockByExtId(x, y, z);
-                            if (block == null) continue;
-                            final int meta = section.getExtBlockMetadata(x, y, z);
-                            if (block.hasTileEntity(meta)) {
-                                if (hasExistingTEs) {
-                                    final ChunkPosition pos = new ChunkPosition(x, worldY, z);
-                                    final TileEntity existing = this.chunkTileEntityMap.get(pos);
-                                    if (existing != null && !existing.isInvalid()) continue;
-                                }
-                                final TileEntity te = block.createTileEntity(this.worldObj, meta);
-                                if (te != null) {
-                                    te.xCoord = (this.xPosition << 4) + x;
-                                    te.yCoord = worldY;
-                                    te.zCoord = (this.zPosition << 4) + z;
-                                    AwaitingDescriptor.begin(te);
-                                    this.addTileEntity(te);
-                                }
-                            }
+                int previousId = -1;
+                Block previousBlock = null;
+                for (int index = 0; index < 4096; index++) {
+                    final int x = index & 15;
+                    final int z = (index >> 4) & 15;
+                    final int y = index >> 8;
+                    final Block block;
+                    if (lowIds == null) {
+                        block = section.getBlockByExtId(x, y, z);
+                    } else {
+                        int id = lowIds[index] & 255;
+                        if (highIds != null) id |= highIds.get(x, y, z) << 8;
+                        if (id == 0) continue;
+                        if (id != previousId) {
+                            previousId = id;
+                            previousBlock = Block.getBlockById(id);
                         }
+                        block = previousBlock;
+                    }
+                    if (block == null) continue;
+                    final int meta = section.getExtBlockMetadata(x, y, z);
+                    if (!block.hasTileEntity(meta)) continue;
+                    final int worldY = baseY + y;
+                    if (hasExistingTEs) {
+                        final ChunkPosition pos = new ChunkPosition(x, worldY, z);
+                        final TileEntity existing = tileEntities.get(pos);
+                        if (existing != null && !existing.isInvalid()) continue;
+                    }
+                    final TileEntity te = block.createTileEntity(this.worldObj, meta);
+                    if (te != null) {
+                        te.xCoord = (this.xPosition << 4) + x;
+                        te.yCoord = worldY;
+                        te.zCoord = (this.zPosition << 4) + z;
+                        AwaitingDescriptor.begin(te);
+                        this.addTileEntity(te);
                     }
                 }
             }
-        });
+        } finally {
+            tileEntities.writeUnlock();
+        }
     }
 
     @Inject(method = "fillChunk", at = @At("RETURN"))

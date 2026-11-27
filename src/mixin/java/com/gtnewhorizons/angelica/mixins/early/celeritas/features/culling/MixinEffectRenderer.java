@@ -15,6 +15,8 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import java.util.List;
+
 /**
  * EffectRenderer mixin for celeritas particle culling.
  * Culls particles that are outside the view frustum.
@@ -42,9 +44,7 @@ public class MixinEffectRenderer {
 
     @Redirect(method = "renderParticles", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/particle/EntityFX;renderParticle(Lnet/minecraft/client/renderer/Tessellator;FFFFFF)V"))
     private void renderParticles(EntityFX particle, Tessellator tessellator, float partialTicks, float rotationX, float rotationZ, float rotationYZ, float rotationXY, float rotationXZ) {
-        if (cullingViewport == null || particle.boundingBox == TileEntity.INFINITE_EXTENT_AABB ||
-            cullingViewport.isBoxVisible(particle.boundingBox.minX, particle.boundingBox.minY, particle.boundingBox.minZ,
-                                         particle.boundingBox.maxX, particle.boundingBox.maxY, particle.boundingBox.maxZ)) {
+        if (angelica$isVisible(particle)) {
             particle.renderParticle(tessellator, partialTicks, rotationX, rotationZ, rotationYZ, rotationXY, rotationXZ);
         }
     }
@@ -54,12 +54,17 @@ public class MixinEffectRenderer {
         setupCullingViewport();
     }
 
-    @Redirect(method = "renderLitParticles", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/particle/EntityFX;renderParticle(Lnet/minecraft/client/renderer/Tessellator;FFFFFF)V"))
-    private void renderLitParticles(EntityFX particle, Tessellator tessellator, float partialTicks, float rotationX, float rotationZ, float rotationYZ, float rotationXY, float rotationXZ) {
-        if (cullingViewport == null || particle.boundingBox == TileEntity.INFINITE_EXTENT_AABB ||
+    @Redirect(method = "renderLitParticles", at = @At(value = "INVOKE", target = "Ljava/util/List;get(I)Ljava/lang/Object;", remap = false))
+    private Object angelica$getVisibleLitParticle(List<?> particles, int index) {
+        final EntityFX particle = (EntityFX) particles.get(index);
+        // Vanilla's null guard precedes brightness sampling and the particle's draw callback.
+        return particle != null && angelica$isVisible(particle) ? particle : null;
+    }
+
+    @Unique
+    private boolean angelica$isVisible(EntityFX particle) {
+        return cullingViewport == null || particle.boundingBox == TileEntity.INFINITE_EXTENT_AABB ||
             cullingViewport.isBoxVisible(particle.boundingBox.minX, particle.boundingBox.minY, particle.boundingBox.minZ,
-                                         particle.boundingBox.maxX, particle.boundingBox.maxY, particle.boundingBox.maxZ)) {
-            particle.renderParticle(tessellator, partialTicks, rotationX, rotationZ, rotationYZ, rotationXY, rotationXZ);
-        }
+                                         particle.boundingBox.maxX, particle.boundingBox.maxY, particle.boundingBox.maxZ);
     }
 }
